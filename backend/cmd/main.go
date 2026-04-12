@@ -11,6 +11,7 @@ import (
 
 	firebase "firebase.google.com/go/v4"
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 	"google.golang.org/api/option"
 
 	"github.com/FranMaggi73/tcg-tournament/backend/internal/handlers"
@@ -19,6 +20,11 @@ import (
 )
 
 func main() {
+	// Load .env file if available
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found, using system environment variables")
+	}
+
 	ctx := context.Background()
 
 	// Firebase Credentials
@@ -51,7 +57,7 @@ func main() {
 	// Public Routes
 	r.GET("/tournaments/:id", h.GetTournament)
 	r.GET("/tournaments/:id/standings", h.GetStandings)
-	r.GET("/tournaments/:id/export", h.ExportStandings) // Registered Export
+	r.GET("/tournaments/:id/export", h.ExportStandings)
 	r.POST("/tournaments/:id/players", h.RegisterPlayer)
 
 	// Protected Routes (Require Auth)
@@ -62,7 +68,7 @@ func main() {
 		authGroup.POST("/tournaments/:id/rounds/next", h.NextRound)
 		authGroup.PATCH("/tournaments/:id/matches/:matchId", h.UpdateMatchResult)
 		authGroup.PATCH("/tournaments/:id/players/:playerId/status", h.UpdatePlayerStatus)
-		authGroup.POST("/tournaments/:id/rollback", h.RollbackRound) // Registered Rollback
+		authGroup.POST("/tournaments/:id/rollback", h.RollbackRound)
 	}
 
 	// Graceful Shutdown Setup
