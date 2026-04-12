@@ -1,6 +1,4 @@
 import { auth } from '$lib/services/firebase';
-import { __idToken } from '$lib/services/auth-utils'; // Assuming this is a helper or we'll get it from auth
-import { getIdToken } from 'firebase/auth';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
@@ -41,6 +39,13 @@ export const tournamentApi = {
 			method: 'POST',
 			body: JSON.stringify({ score1, score2 })
 		});
+	},
+
+	/**
+	 * Get standings for a tournament
+	 */
+	async getStandings(tournamentId: string) {
+		return apiRequest<any[]>(`/tournaments/${tournamentId}/standings`);
 	},
 
 	/**

@@ -106,11 +106,11 @@
 											{:else}
 												<div class="w-full h-full flex items-center justify-center text-xs font-bold">
 													{profiles[entry.uid]?.displayName?.charAt(0).toUpperCase() || 'U'}
- l la la
+												</div>
+											{/if}
 										</div>
 									</div>
 								</div>
-							</div>
 							<span class="font-medium">{profiles[entry.uid]?.displayName || entry.uid}</span>
 							</td>
 							<td class="text-center font-bold">{entry.points}</td>
