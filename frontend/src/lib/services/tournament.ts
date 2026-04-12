@@ -1,0 +1,96 @@
+import { db } from '$lib/services/firebase';
+import {
+	collection,
+	doc,
+	setDoc,
+	updateDoc,
+	getDoc,
+	getDocs,
+	onSnapshot,
+	query,
+	where
+} from 'firebase/firestore';
+import type { Tournament, Match } from '$lib/types/firebase';
+
+const TOURNAMENTS_COLLECTION = 'tournaments';
+
+/**
+ * Creates a new tournament in Firestore
+ */
+export async function createTournament(name: string, userId: string): Promise<string> {
+	const tournamentRef = doc(collection(db, TOURNAMENTS_COLLECTION));
+	const tournamentData: Omit<Tournament, 'id'> = {
+		name,
+		createdBy: userId,
+		createdAt: new Date(),
+		status: 'pending',
+		currentRound: 1,
+		participants: []
+	};
+
+	await setDoc(tournamentRef, tournamentData);
+	return tournamentRef.id;
+}
+
+/**
+ * Fetches all tournaments created by a specific judge
+ */
+export async function getTournamentsByJudge(userId: string): Promise<Tournament[]> {
+	const q = query(collection(db, TOURNAMENTS_COLLECTION), where('createdBy', '==', userId));
+	const querySnapshot = await getDocs(q);
+
+	return querySnapshot.docs.map(doc => ({
+		id: doc.id,
+		...doc.data()
+	} as Tournament));
+}
+
+/**
+ * Updates tournament data
+ */
+export async function updateTournament(id: string, data: Partial<Tournament>): Promise<void> {
+	const docRef = doc(db, TOURNAMENTS_COLLECTION, id);
+	await updateDoc(docRef, data);
+}
+
+/**
+ * Fetches a tournament document once
+ */
+export async function getTournament(id: string): Promise<Tournament | null> {
+	const docRef = doc(db, TOURNAMENTS_COLLECTION, id);
+	const docSnap = await getDoc(docRef);
+
+	if (docSnap.exists()) {
+		return { id, ...docSnap.data() } as Tournament;
+	}
+	return null;
+}
+
+/**
+ * Subscribes to real-time updates of a tournament.
+ * Returns an unsubscribe function to be called in onDestroy.
+ */
+export function subscribeToTournament(id: string, callback: (tournament: Tournament) => void) {
+	const docRef = doc(db, TOURNAMENTS_COLLECTION, id);
+
+	return onSnapshot(docRef, (snapshot) => {
+		if (snapshot.exists()) {
+			callback({ id, ...snapshot.data() } as Tournament);
+		}
+	});
+}
+
+/**
+ * Subscribes to real-time updates of matches for a specific round in a tournament.
+ */
+export function subscribeToMatches(tournamentId: string, round: number, callback: (matches: Match[]) => void) {
+	const matchesCol = collection(db, 'tournaments', tournamentId, 'rounds', `round_${round}`, 'matches');
+
+	return onSnapshot(matchesCol, (snapshot) => {
+		const matches = snapshot.docs.map(doc => ({
+			id: doc.id,
+			...doc.data()
+		} as Match));
+		callback(matches);
+	});
+}
