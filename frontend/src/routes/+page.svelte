@@ -1,9 +1,8 @@
 <script lang="ts">
 	import { authStore } from '$lib/stores/auth.svelte';
 	import LoginForm from '$lib/components/auth/LoginForm.svelte';
-	import SignUpForm from '$lib/components/auth/SignUpForm.svelte';
 
-	let authMode = $state<'login' | 'signup'>('login');
+	// Removed authMode as signup is no longer needed with Google Auth
 </script>
 
 <div class="p-8 flex flex-col items-center justify-center min-h-screen gap-8">
@@ -19,16 +18,7 @@
 				<p class="text-base-content/70">Gestiona tus torneos de cartas en tiempo real</p>
 			</div>
 
-			<div class="tabs tabs-boxed bg-base-200 p-1">
-				<button type="button" class="tab {authMode === 'login' ? 'tab-active' : ''}" onclick={() => authMode = 'login'}>Iniciar Sesión</button>
-				<button type="button" class="tab {authMode === 'signup' ? 'tab-active' : ''}" onclick={() => authMode = 'signup'}>Registrarse</button>
-			</div>
-
-			{#if authMode === 'login'}
-				<LoginForm />
-			{:else}
-				<SignUpForm />
-			{/if}
+			<LoginForm />
 		</div>
 	{:else}
 		<div class="card w-full max-w-md bg-base-200 shadow-xl border border-base-300">
