@@ -1,4 +1,4 @@
-module github.com/FranMaggi73/tcg-tournament
+module github.com/FranMaggi73/tcg-tournament/backend
 
 go 1.25.6
 

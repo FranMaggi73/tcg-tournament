@@ -9,13 +9,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	firebase "firebase.google.com/go/v4"
+	"github.com/gin-gonic/gin"
 	"google.golang.org/api/option"
 
-	"github.com/FranMaggi73/tcg-tournament/internal/handlers"
-	"github.com/FranMaggi73/tcg-tournament/internal/middleware"
-	"github.com/FranMaggi73/tcg-tournament/internal/tournament"
+	"github.com/FranMaggi73/tcg-tournament/backend/internal/handlers"
+	"github.com/FranMaggi73/tcg-tournament/backend/internal/middleware"
+	"github.com/FranMaggi73/tcg-tournament/backend/internal/tournament"
 )
 
 func main() {

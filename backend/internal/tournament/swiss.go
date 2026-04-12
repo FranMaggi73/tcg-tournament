@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/FranMaggi73/tcg-tournament/internal/models"
+	"github.com/FranMaggi73/tcg-tournament/backend/internal/models"
 )
 
 type SwissService struct {

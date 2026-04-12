@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"cloud.google.com/go/firestore"
-	"github.com/FranMaggi73/tcg-tournament/internal/models"
+	"github.com/FranMaggi73/tcg-tournament/backend/internal/models"
 	"google.golang.org/api/iterator"
 )
 

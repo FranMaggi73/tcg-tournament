@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"sort"
 
+	"github.com/FranMaggi73/tcg-tournament/backend/internal/models"
+	"github.com/FranMaggi73/tcg-tournament/backend/internal/tournament"
 	"github.com/gin-gonic/gin"
-	"github.com/FranMaggi73/tcg-tournament/internal/models"
-	"github.com/FranMaggi73/tcg-tournament/internal/tournament"
 )
 
 type TournamentHandler struct {
