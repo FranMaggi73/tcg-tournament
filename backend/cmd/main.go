@@ -10,18 +10,17 @@ import (
 	"time"
 
 	firebase "firebase.google.com/go/v4"
-	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
-	"google.golang.org/api/option"
-
 	"github.com/FranMaggi73/tcg-tournament/backend/internal/handlers"
 	"github.com/FranMaggi73/tcg-tournament/backend/internal/middleware"
 	"github.com/FranMaggi73/tcg-tournament/backend/internal/tournament"
+	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
+	"google.golang.org/api/option"
 )
 
 func main() {
 	// Load .env file if available
-	if err := godotenv.Load(); err != nil {
+	if err := godotenv.Load("../.env"); err != nil {
 		log.Println("No .env file found, using system environment variables")
 	}
 
@@ -29,8 +28,10 @@ func main() {
 
 	// Firebase Credentials
 	opt := option.WithCredentialsFile(os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"))
-
-	app, err := firebase.NewApp(ctx, nil, opt)
+	config := &firebase.Config{
+		ProjectID: os.Getenv("FIREBASE_PROJECT_ID"),
+	}
+	app, err := firebase.NewApp(ctx, config, opt)
 	if err != nil {
 		log.Fatalf("error initializing firebase app: %v", err)
 	}
@@ -88,10 +89,11 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	log.Println("Shutting down server...")
 
+	log.Println("Shutting down server...")
 	ctxShutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
 	if err := srv.Shutdown(ctxShutdown); err != nil {
 		log.Fatal("Server forced to shutdown:", err)
 	}
