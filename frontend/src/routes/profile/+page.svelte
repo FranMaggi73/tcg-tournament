@@ -2,8 +2,9 @@
 	import { onMount } from 'svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { getUserProfile, updateUserProfile } from '$lib/services/user';
-	import { friendshipApi } from '$lib/services/api';
-	import type { UserProfile, Friendship } from '$lib/types/firebase';
+	import { friendshipApi, tournamentApi } from '$lib/services/api';
+	import { notificationService } from '$lib/services/notifications';
+	import type { UserProfile, Friendship, Notification } from '$lib/types/firebase';
 
 	let { data } = $props();
 	let profile = $state<UserProfile | null>(null);
@@ -16,6 +17,10 @@
 	let pendingRequests = $state<Friendship[]>([]);
 	let friendSearch = $state('');
 	let isAddingFriend = $state(false);
+
+	// Notifications state
+	let notifications = $state<Notification[]>([]);
+	let isNotifLoading = $state(false);
 
 	onMount(async () => {
 		if (!authStore.user) {
@@ -33,6 +38,7 @@
 				};
 			}
 			await loadFriends();
+			await loadNotifications();
 		} catch (e: any) {
 			errorMessage = e.message;
 		} finally {
@@ -43,11 +49,33 @@
 	async function loadFriends() {
 		try {
 			const all = await friendshipApi.getFriends();
-			// The backend currently returns only accepted friends.
-			// In a real app, we'd have a separate endpoint for pending requests.
 			friends = all;
 		} catch (e: any) {
 			console.error('Error loading friends:', e);
+		}
+	}
+
+	async function loadNotifications() {
+		if (!authStore.user) return;
+		isNotifLoading = true;
+		try {
+			notifications = await notificationService.getNotifications(authStore.user.uid);
+		} catch (e: any) {
+			console.error('Error loading notifications:', e);
+		} finally {
+			isNotifLoading = false;
+		}
+	}
+
+	async function handleJoinTournament(notification: Notification) {
+		try {
+			const playerName = profile?.displayName || 'Jugador';
+			await tournamentApi.joinByCode(notification.inviteCode, authStore.user?.email || '', playerName);
+			await notificationService.markAsRead(notification.id);
+			alert('¡Te has unido al torneo exitosamente!');
+			await loadNotifications();
+		} catch (e: any) {
+			alert(`Error al unirse: ${e.message}`);
 		}
 	}
 
@@ -107,9 +135,9 @@
 			<span class="loading loading-ring loading-lg text-primary"></span>
 		</div>
 	{:else if profile}
-		<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+		<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
 			<!-- Profile Settings -->
-			<div class="md:col-span-1 card bg-base-200 shadow-xl border border-base-300 p-8">
+			<div class="lg:col-span-1 card bg-base-200 shadow-xl border border-base-300 p-8">
 				<div class="space-y-6">
 					<div class="form-control">
 						<label class="label" for="profile-nickname">
@@ -171,7 +199,39 @@
 			</div>
 
 			<!-- Friends List -->
-			<div class="md:col-span-2 space-y-6">
+			<div class="lg:col-span-2 space-y-6">
+				<!-- Notifications Card -->
+				<div class="card bg-base-200 shadow-xl border border-base-300 p-8">
+					<h2 class="text-xl font-bold text-primary mb-6">Invitaciones Recibidas</h2>
+
+					{#if isNotifLoading}
+						<div class="flex justify-center py-8">
+							<span class="loading loading-spinner loading-md text-primary"></span>
+						</div>
+					{:else if notifications.length === 0}
+						<p class="text-center py-8 opacity-50 italic">No tienes invitaciones pendientes.</p>
+					{:else}
+						<div class="space-y-4">
+							{#each notifications as notif}
+								<div class="flex items-center justify-between p-4 bg-base-300 rounded-box border border-base-300 {notif.read ? 'opacity-50' : 'ring-1 ring-primary' }">
+									<div class="flex flex-col">
+										<p class="font-bold text-sm">{notif.message}</p>
+										<p class="text-xs opacity-60">{notif.tournamentName}</p>
+									</div>
+									<button
+										class="btn btn-primary btn-xs"
+										onclick={() => handleJoinTournament(notif)}
+										disabled={notif.read}
+									>
+										Unirse
+									</button>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				</div>
+
+				<!-- Friends List Card -->
 				<div class="card bg-base-200 shadow-xl border border-base-300 p-8">
 					<h2 class="text-xl font-bold text-primary mb-6">Mis Amigos</h2>
 
@@ -197,14 +257,15 @@
 
 					<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 						{#each friends as friend}
+							{@const friendUid = friend.user1Id === authStore.user?.uid ? friend.user2Id : friend.user1Id}
 							<div class="flex items-center gap-3 p-3 bg-base-300 rounded-box border border-base-300">
 								<div class="avatar placeholder">
 									<div class="bg-neutral text-neutral-content rounded-full w-10">
-										<span>U</span>
+										<span class="text-xs">{friendUid.charAt(0).toUpperCase()}</span>
 									</div>
 								</div>
 								<div class="flex-1 overflow-hidden">
-									<p class="text-sm font-bold truncate">{friend.user1Id === authStore.user?.uid ? friend.user2Id : friend.user1Id}</p>
+									<p class="text-sm font-bold truncate">{friendUid}</p>
 									<p class="text-xs opacity-50">Amigo aceptado</p>
 								</div>
 							</div>
@@ -215,6 +276,11 @@
 					</div>
 				</div>
 			</div>
+		</div>
+	{/if}
+	{#if profile}
+		<div class="flex justify-center py-4 opacity-50 text-xs">
+			Actualizado el {(profile.updatedAt as any)?.toDate ? (profile.updatedAt as any).toDate().toLocaleString() : profile.updatedAt?.toLocaleString() || 'Recientemente'}
 		</div>
 	{/if}
 </div>

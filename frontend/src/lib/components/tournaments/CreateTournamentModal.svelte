@@ -28,10 +28,11 @@
 		<h3 class="text-lg font-bold text-primary mb-4">Crear Nuevo Torneo</h3>
 
 		<div class="form-control w-full mb-4">
-			<label class="label">
+			<label class="label" for="tournament-name">
 				<span class="label-text">Nombre del Torneo</span>
 			</label>
 			<input
+				id="tournament-name"
 				type="text"
 				bind:value={name}
 				placeholder="Ej. Regional TCG Spring 2026"
@@ -40,10 +41,11 @@
 		</div>
 
 		<div class="form-control w-full mb-6">
-			<label class="label">
+			<label class="label" for="tournament-format">
 				<span class="label-text">Formato de Partida</span>
 			</label>
 			<select
+				id="tournament-format"
 				bind:value={format}
 				class="select select-bordered w-full"
 			>

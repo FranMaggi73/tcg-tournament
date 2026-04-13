@@ -55,6 +55,11 @@ func (r *Repository) GetTournamentByInviteCode(ctx context.Context, code string)
 	return &t, nil
 }
 
+func (r *Repository) DeleteTournament(ctx context.Context, id string) error {
+	_, err := r.client.Collection("tournaments").Doc(id).Delete(ctx)
+	return err
+}
+
 // --- Player Methods ---
 
 func (r *Repository) PlayerExists(ctx context.Context, tournamentID string, email string) (bool, error) {

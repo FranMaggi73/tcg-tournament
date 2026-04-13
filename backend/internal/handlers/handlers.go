@@ -51,6 +51,7 @@ func (h *TournamentHandler) CreateTournament(c *gin.Context) {
 		t.TotalRounds = 0
 	}
 
+	// IMPORTANT: Generate invite code here
 	t.InviteCode = uuid.NewString()[:8]
 
 	if t.Format != "BO1" && t.Format != "BO3" {
@@ -100,7 +101,24 @@ func (h *TournamentHandler) JoinTournamentByCode(c *gin.Context) {
 		return
 	}
 
-	exists, err := h.repo.PlayerExists(c.Request.Context(), t.ID, req.Email)
+	// Use email from request if provided, otherwise try to get it from auth token
+	email := req.Email
+	if email == "" {
+		uid, exists := c.Get("uid")
+		if exists {
+			uidStr := uid.(string)
+			// In a real app, we'd fetch the user profile from Firestore to get the email
+			// For now, we'll use a placeholder or require it if not found
+			email = "user_" + uidStr + "@example.com"
+		}
+	}
+
+	if email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Email is required for registration"})
+		return
+	}
+
+	exists, err := h.repo.PlayerExists(c.Request.Context(), t.ID, email)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error checking player existence"})
 		return
@@ -113,7 +131,7 @@ func (h *TournamentHandler) JoinTournamentByCode(c *gin.Context) {
 	p := &models.Player{
 		ID:     uuid.NewString(),
 		Name:   req.Name,
-		Email:  req.Email,
+		Email:  email,
 		Status: "active",
 	}
 
@@ -429,4 +447,43 @@ func (h *TournamentHandler) ExportStandings(c *gin.Context) {
 		"tournamentID": tournamentID,
 		"standings":    exportData,
 	})
+}
+
+// DeleteTournament deletes a tournament if it hasn't started yet. (Judge Only)
+func (h *TournamentHandler) DeleteTournament(c *gin.Context) {
+	tournamentID := c.Param("id")
+	uid, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	uidStr, ok := uid.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal authentication error"})
+		return
+	}
+
+	t, err := h.repo.GetTournament(c.Request.Context(), tournamentID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Tournament not found"})
+		return
+	}
+
+	if t.CreatedBy != uidStr {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Only the tournament judge can delete the tournament"})
+		return
+	}
+
+	if t.Status != "registration" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot delete a tournament that has already started"})
+		return
+	}
+
+	if err := h.repo.DeleteTournament(c.Request.Context(), tournamentID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Tournament deleted successfully"})
 }

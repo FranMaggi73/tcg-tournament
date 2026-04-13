@@ -6,13 +6,12 @@
 	// Join Tournament state
 	let inviteCode = $state('');
 	let playerName = $state('');
-	let playerEmail = $state('');
 	let isJoining = $state(false);
 	let joinError = $state('');
 	let joinSuccess = $state(false);
 
 	async function handleJoin() {
-		if (!inviteCode || !playerName || !playerEmail) {
+		if (!inviteCode || !playerName) {
 			joinError = 'Todos los campos son obligatorios';
 			return;
 		}
@@ -22,7 +21,8 @@
 		joinSuccess = false;
 
 		try {
-			await tournamentApi.joinByCode(inviteCode, playerEmail, playerName);
+			// We no longer send the email manually, backend uses the auth context
+			await tournamentApi.joinByCode(inviteCode, authStore.user?.email || '', playerName);
 			joinSuccess = true;
 		} catch (e: any) {
 			joinError = e.message;
@@ -98,18 +98,6 @@
 									type="text"
 									bind:value={playerName}
 									placeholder="Tu nickname"
-									class="input input-bordered w-full"
-								/>
-							</div>
-							<div class="form-control">
-								<label class="label" for="player-email">
-									<span class="label-text">Email</span>
-								</label>
-								<input
-									id="player-email"
-									type="email"
-									bind:value={playerEmail}
-									placeholder="email@ejemplo.com"
 									class="input input-bordered w-full"
 								/>
 							</div>

@@ -59,3 +59,15 @@ export interface Friendship {
 	status: 'pending' | 'accepted' | 'declined';
 	createdAt: Date;
 }
+
+export interface Notification {
+	id: string;
+	recipientId: string;
+	senderId: string;
+	tournamentId: string;
+	inviteCode: string;
+	tournamentName: string;
+	message: string;
+	read: boolean;
+	createdAt: Date;
+}

@@ -5,6 +5,7 @@
 	import type { Tournament, Match } from '$lib/types/firebase';
 	import ParticipantManager from '$lib/components/tournaments/ParticipantManager.svelte';
 	import MatchResultEditor from '$lib/components/tournaments/MatchResultEditor.svelte';
+	import InviteFriendsModal from '$lib/components/tournaments/InviteFriendsModal.svelte';
 
 	let { data } = $props<{ data: { tournamentId: string } }>();
 	let tournament = $state<Tournament | null>(null);
@@ -12,6 +13,7 @@
 	let unsubscribeTournament: () => void;
 	let unsubscribeMatches: () => void;
 	let activeTab = $state('settings');
+	let isInviteModalOpen = $state(false);
 
 	onMount(() => {
 		unsubscribeTournament = subscribeToTournament(data.tournamentId, (updatedT) => {
@@ -99,7 +101,7 @@
 							</div>
 						{:else}
 							<div class="alert alert-warning shadow-sm">
-								<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.88m-13.88 0a4.9999999999999996 4.9999999999999996-4.9999999999999996-4.9999999999999996-4.9999999999999996-4.9999999999999996 4.9999999999999996 4.9999999999999996-4.9999999999999996-4.9999999999999996"></path></svg>
+								<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.88m-13.88 0a4.9999999999999996 4.9999999999999996-4.9999999999999996-4.9999999999999996 4.9999999999999996 4.9999999999999996-4.9999999999999996"></path></svg>
 								<div>
 									<span>El registro está cerrado y la configuración bloqueada.</span>
 								</div>
@@ -154,14 +156,19 @@
 
 						{#if tournament.status === 'registration'}
 							<div class="card bg-base-300 p-4 rounded-box border border-base-300">
-								<div class="flex items-center justify-between gap-4">
-									<div>
+								<div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+									<div class="text-center sm:text-left">
 										<p class="text-sm opacity-70">Código de Invitación:</p>
 										<p class="text-2xl font-mono font-bold text-primary">{tournament.inviteCode || 'Cargando...'}</p>
 									</div>
-									<button class="btn btn-sm btn-outline" onclick={() => { const code = tournament?.inviteCode; if(code) { navigator.clipboard.writeText(code); alert('Código copiado!'); } }}>
-										Copiar Código
-									</button>
+									<div class="flex gap-2">
+										<button class="btn btn-sm btn-outline" onclick={() => { const code = tournament?.inviteCode; if(code) { navigator.clipboard.writeText(code); alert('Código copiado!'); } }}>
+											Copiar Código
+										</button>
+										<button class="btn btn-sm btn-primary" onclick={() => isInviteModalOpen = true}>
+											Enviar a Amigos
+										</button>
+									</div>
 								</div>
 							</div>
 						{/if}
@@ -197,4 +204,11 @@
 			{/if}
 		</div>
 	</div>
+
+	{#if isInviteModalOpen}
+		<InviteFriendsModal
+			tournament={tournament}
+			onClose={() => isInviteModalOpen = false}
+		/>
+	{/if}
 </div>
