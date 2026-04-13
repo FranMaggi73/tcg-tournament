@@ -1,12 +1,10 @@
 <script lang="ts">
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
-	import { initAuthObserver } from '$lib/stores/auth.svelte';
+	// Import auth store to ensure auth observer is initialized
+	import '$lib/stores/auth.svelte';
 
 	let { children } = $props();
-
-	// Initialize Firebase Auth observer on app start
-	initAuthObserver();
 </script>
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { getTournamentsByJudge, subscribeToPlayers } from '$lib/services/tournament';
-	import { authStore } from '$lib/stores/auth.svelte';
+	import { getTournamentsByJudge } from '$lib/services/tournament';
+	import { authStore, waitForAuth } from '$lib/stores/auth.svelte';
 	import CreateTournamentModal from '$lib/components/tournaments/CreateTournamentModal.svelte';
 	import type { Tournament } from '$lib/types/firebase';
 
@@ -12,8 +12,10 @@
 	async function loadTournaments() {
 		isLoading = true;
 		try {
-			const data = await getTournamentsByJudge(authStore.user!.uid);
-			tournaments = data;
+			await waitForAuth();
+			if (!authStore.user) return;
+			const data = await getTournamentsByJudge(authStore.user.uid);
+			tournaments = data ?? [];
 		} catch (e) {
 			console.error('Error loading tournaments:', e);
 		} finally {
@@ -21,9 +23,7 @@
 		}
 	}
 
-	onMount(() => {
-		loadTournaments();
-	});
+	onMount(loadTournaments);
 </script>
 
 <div class="p-8 max-w-5xl mx-auto">
@@ -46,39 +46,41 @@
 			<span class="loading loading-ring loading-lg text-primary"></span>
 		</div>
 	{:else}
-		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-			{#each tournaments as t}
-				<div class="card bg-base-200 shadow-md border border-base-300 hover:border-primary transition-colors group">
-					<div class="card-body">
-						<div class="flex justify-between items-start">
-							<h2 class="card-title text-xl group-hover:text-primary transition-colors">{t.name}</h2>
-							<div class="badge badge-secondary">{t.status}</div>
-						</div>
-						<div class="flex items-center gap-4 mt-2 text-sm text-base-content/60">
-							<span>Formato: {t.format}</span>
-							<span>Ronda: {t.currentRound}</span>
-						</div>
-						<div class="card-actions justify-end mt-4">
-							<a href="/tournaments/{t.id}/manage" class="btn btn-outline btn-sm">Administrar</a>
-						</div>
+	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+		{#each tournaments as t}
+			<div class="card bg-base-200 shadow-md border border-base-300 hover:border-primary transition-colors group">
+				<div class="card-body">
+					<div class="flex justify-between items-start">
+						<h2 class="card-title text-xl group-hover:text-primary transition-colors">{t.name}</h2>
+						<div class="badge badge-secondary">{t.status}</div>
+					</div>
+					<div class="flex items-center gap-4 mt-2 text-sm text-base-content/60">
+						<span>Formato: {t.format}</span>
+						<span>Ronda: {t.currentRound}</span>
+					</div>
+					{#if t.inviteCode && t.status === 'registration'}
+						<div class="mt-2 text-xs opacity-60">Código: <span class="font-mono font-bold text-primary">{t.inviteCode}</span></div>
+					{/if}
+					<div class="card-actions justify-end mt-4">
+						<a href="/tournaments/{t.id}/manage" class="btn btn-outline btn-sm">Administrar</a>
 					</div>
 				</div>
-			{/each}
-			{#if tournaments.length === 0}
-				<div class="flex flex-col items-center justify-center py-20 text-center col-span-full">
-					<div class="text-5xl mb-4">🏆</div>
-					<p class="text-lg text-base-content/70">Aún no has creado ningún torneo.</p>
-					<p class="text-sm text-base-content/50">Empieza creando uno ahora mismo.</p>
-				</div>
-			{/if}
-		</div>
+			</div>
+		{/each}
+		{#if tournaments.length === 0}
+			<div class="flex flex-col items-center justify-center py-20 text-center col-span-full">
+				<div class="text-5xl mb-4">🏆</div>
+				<p class="text-lg text-base-content/70">Aún no has creado ningún torneo.</p>
+				<p class="text-sm text-base-content/50">Empieza creando uno ahora mismo.</p>
+			</div>
+		{/if}
+	</div>
 	{/if}
 
 	{#if isModalOpen}
 		<CreateTournamentModal
 			onClose={() => {
 				isModalOpen = false;
-				loadTournaments();
 			}}
 		/>
 	{/if}

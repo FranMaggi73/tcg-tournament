@@ -192,6 +192,9 @@ func (h *TournamentHandler) GetStandings(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	if players == nil {
+		players = []*models.Player{}
+	}
 	c.JSON(http.StatusOK, players)
 }
 

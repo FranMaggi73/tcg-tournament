@@ -50,7 +50,7 @@
 	async function loadFriends() {
 		try {
 			const all = await friendshipApi.getFriends();
-			friends = all;
+			friends = all ?? [];
 		} catch (e: any) {
 			console.error('Error loading friends:', e);
 		}
@@ -58,7 +58,8 @@
 
 	async function loadPendingRequests() {
 		try {
-			pendingRequests = await friendshipApi.getPendingRequests();
+			const result = await friendshipApi.getPendingRequests();
+			pendingRequests = result ?? [];
 		} catch (e: any) {
 			console.error('Error loading pending requests:', e);
 		}

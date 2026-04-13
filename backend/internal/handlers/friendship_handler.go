@@ -71,6 +71,9 @@ func (h *FriendshipHandler) GetFriends(c *gin.Context) {
 		return
 	}
 
+	if friends == nil {
+		friends = []*models.Friendship{}
+	}
 	c.JSON(http.StatusOK, friends)
 }
 
@@ -113,5 +116,8 @@ func (h *FriendshipHandler) GetPendingRequests(c *gin.Context) {
 		return
 	}
 
+	if requests == nil {
+		requests = []*models.Friendship{}
+	}
 	c.JSON(http.StatusOK, requests)
 }

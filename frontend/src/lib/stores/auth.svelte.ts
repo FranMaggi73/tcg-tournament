@@ -13,8 +13,15 @@ export const authStore = $state<AuthState>({
 	isLoading: true
 });
 
+// Auth ready promise — resolves once onAuthStateChanged fires for the first time
+let authReadyResolve: () => void;
+const authReadyPromise = new Promise<void>((resolve) => {
+	authReadyResolve = resolve;
+});
+
 /**
- * Initializes the auth observer to keep the authStore in sync with Firebase Auth
+ * Initializes the auth observer to keep the authStore in sync with Firebase Auth.
+ * Called eagerly at module load time so auth state is available for load functions.
  */
 export function initAuthObserver() {
 	onAuthStateChanged(auth, (firebaseUser: User | null) => {
@@ -29,6 +36,7 @@ export function initAuthObserver() {
 			authStore.user = null;
 		}
 		authStore.isLoading = false;
+		authReadyResolve();
 	});
 }
 
@@ -37,17 +45,9 @@ export function initAuthObserver() {
  * Useful in load functions to wait for auth before checking user state.
  */
 export function waitForAuth(): Promise<void> {
-	return new Promise((resolve) => {
-		if (!authStore.isLoading) {
-			resolve();
-			return;
-		}
-		// Poll until auth is ready
-		const interval = setInterval(() => {
-			if (!authStore.isLoading) {
-				clearInterval(interval);
-				resolve();
-			}
-		}, 50);
-	});
+	if (!authStore.isLoading) return Promise.resolve();
+	return authReadyPromise;
 }
+
+// Eagerly initialize auth observer when this module is imported
+initAuthObserver();

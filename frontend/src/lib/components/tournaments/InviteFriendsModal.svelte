@@ -22,7 +22,8 @@
 		try {
 			isLoading = true;
 			loadFailed = false;
-			friends = await friendshipApi.getFriends();
+			const result = await friendshipApi.getFriends();
+			friends = result ?? [];
 		} catch (e: any) {
 			loadFailed = true;
 			// Show friendly error instead of raw "failed to fetch"
