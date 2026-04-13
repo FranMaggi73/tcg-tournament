@@ -3,10 +3,11 @@
 	import { resolveUserProfiles } from '$lib/services/user';
 	import type { Match } from '$lib/types/firebase';
 
-	let { tournamentId, round, matches } = $props<{
+	let { tournamentId, round, matches, format } = $props<{
 		tournamentId: string;
 		round: number;
-		matches: Match[]
+		matches: Match[];
+		format: 'BO1' | 'BO3';
 	}>();
 
 	let scores = $state<Record<string, { s1: number, s2: number }>>({});
@@ -27,13 +28,18 @@
 		});
 	});
 
-	function isValidBO3(s1: number, s2: number): boolean {
-		return (s1 === 2 && s2 < 2) || (s2 === 2 && s1 < 2);
+	function isValidScore(format: 'BO1' | 'BO3', s1: number, s2: number): boolean {
+		if (format === 'BO3') {
+			return (s1 === 2 && s2 < 2) || (s2 === 2 && s1 < 2);
+		} else {
+			// BO1: One player must have 1 and the other 0
+			return (s1 === 1 && s2 === 0) || (s2 === 1 && s1 === 0);
+		}
 	}
 
 	async function handleSetResult(matchId: string) {
 		const { s1, s2 } = scores[matchId];
-		if (!isValidBO3(s1, s2)) return;
+		if (!isValidScore(format, s1, s2)) return;
 
 		loadingMatches[matchId] = true;
 		try {
@@ -76,9 +82,14 @@
 								bind:value={scores[match.id].s1}
 								disabled={match.status === 'completed'}
 							>
-								<option value={0}>0</option>
-								<option value={1}>1</option>
-								<option value={2}>2</option>
+								{#if format === 'BO3'}
+									<option value={0}>0</option>
+									<option value={1}>1</option>
+									<option value={2}>2</option>
+								{:else}
+									<option value={0}>0</option>
+									<option value={1}>1</option>
+								{/if}
 							</select>
 							<span class="text-xs opacity-50">pts</span>
 						</div>
@@ -95,9 +106,14 @@
 								bind:value={scores[match.id].s2}
 								disabled={match.status === 'completed'}
 							>
-								<option value={0}>0</option>
-								<option value={1}>1</option>
-								<option value={2}>2</option>
+								{#if format === 'BO3'}
+									<option value={0}>0</option>
+									<option value={1}>1</option>
+									<option value={2}>2</option>
+								{:else}
+									<option value={0}>0</option>
+									<option value={1}>1</option>
+								{/if}
 							</select>
 							<span class="text-xs opacity-50">pts</span>
 						</div>
@@ -107,7 +123,7 @@
 				<div class="flex justify-center mt-2">
 					<button
 						class="btn btn-primary btn-xs"
-						disabled={match.status === 'completed' || loadingMatches[match.id] || !isValidBO3(scores[match.id].s1, scores[match.id].s2)}
+						disabled={match.status === 'completed' || loadingMatches[match.id] || !isValidScore(format, scores[match.id].s1, scores[match.id].s2)}
 						onclick={() => handleSetResult(match.id)}
 					>
 						{#if loadingMatches[match.id]}

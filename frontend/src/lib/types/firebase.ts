@@ -10,17 +10,23 @@ export interface Tournament {
 	name: string;
 	createdBy: string; // UID of the judge
 	createdAt: Date;
-	status: 'pending' | 'ongoing' | 'finished';
+	status: 'registration' | 'playing' | 'completed';
 	currentRound: number;
+	totalRounds: number;
 	participants: string[]; // Array of user UIDs
+	format: 'BO1' | 'BO3';
+	inviteCode: string;
 }
 
 export interface Match {
 	id: string;
+	roundId: string;
 	player1: string; // UID
 	player2: string; // UID
+	player1Score: number;
+	player2Score: number;
 	winner: string | null; // UID of the winner
-	status: 'pending' | 'completed';
+	status: 'scheduled' | 'completed';
 	updatedAt: Date;
 }
 
@@ -44,4 +50,12 @@ export interface StandingEntry {
 	omw: number; // Opponent Match Win %
 	gw: number;  // Game Win %
 	ogw: number; // Opponent Game Win %
+}
+
+export interface Friendship {
+	id: string;
+	user1Id: string;
+	user2Id: string;
+	status: 'pending' | 'accepted' | 'declined';
+	createdAt: Date;
 }

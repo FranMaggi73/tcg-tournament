@@ -2,10 +2,11 @@ package tournament
 
 import (
 	"context"
+	"fmt"
 
 	"cloud.google.com/go/firestore"
-	"github.com/FranMaggi73/tcg-tournament/backend/internal/models"
 	"google.golang.org/api/iterator"
+	"github.com/FranMaggi73/tcg-tournament/backend/internal/models"
 )
 
 type Repository struct {
@@ -38,6 +39,20 @@ func (r *Repository) GetTournament(ctx context.Context, id string) (*models.Tour
 func (r *Repository) UpdateTournament(ctx context.Context, t *models.Tournament) error {
 	_, err := r.client.Collection("tournaments").Doc(t.ID).Set(ctx, t)
 	return err
+}
+
+func (r *Repository) GetTournamentByInviteCode(ctx context.Context, code string) (*models.Tournament, error) {
+	iter := r.client.Collection("tournaments").Where("inviteCode", "==", code).Documents(ctx)
+	doc, err := iter.Next()
+	if err == iterator.Done {
+		return nil, fmt.Errorf("no tournament found with this invite code")
+	}
+	if err != nil {
+		return nil, err
+	}
+	var t models.Tournament
+	doc.DataTo(&t)
+	return &t, nil
 }
 
 // --- Player Methods ---
@@ -99,6 +114,48 @@ func (r *Repository) UpdatePlayer(ctx context.Context, tournamentID string, p *m
 func (r *Repository) UpdatePlayerStatus(ctx context.Context, tournamentID string, playerID string, status string) error {
 	_, err := r.client.Collection("tournaments").Doc(tournamentID).
 		Collection("players").Doc(playerID).Update(ctx, []firestore.Update{
+			{Path: "status", Value: status},
+		})
+	return err
+}
+
+// --- Friendship Methods ---
+
+func (r *Repository) CreateFriendship(ctx context.Context, f *models.Friendship) error {
+	_, err := r.client.Collection("friendships").Doc(f.ID).Set(ctx, f)
+	return err
+}
+
+func (r *Repository) GetFriends(ctx context.Context, userID string) ([]*models.Friendship, error) {
+	var allFriends []*models.Friendship
+
+	// Query for user1
+	iter1 := r.client.Collection("friendships").Where("user1Id", "==", userID).Where("status", "==", "accepted").Documents(ctx)
+	for {
+		doc, err := iter1.Next()
+		if err == iterator.Done { break }
+		if err != nil { return nil, err }
+		var f models.Friendship
+		doc.DataTo(&f)
+		allFriends = append(allFriends, &f)
+	}
+
+	// Query for user2
+	iter2 := r.client.Collection("friendships").Where("user2Id", "==", userID).Where("status", "==", "accepted").Documents(ctx)
+	for {
+		doc, err := iter2.Next()
+		if err == iterator.Done { break }
+		if err != nil { return nil, err }
+		var f models.Friendship
+		doc.DataTo(&f)
+		allFriends = append(allFriends, &f)
+	}
+
+	return allFriends, nil
+}
+
+func (r *Repository) UpdateFriendshipStatus(ctx context.Context, friendshipID string, status string) error {
+	_, err := r.client.Collection("friendships").Doc(friendshipID).Update(ctx, []firestore.Update{
 		{Path: "status", Value: status},
 	})
 	return err

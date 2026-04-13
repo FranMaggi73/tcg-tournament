@@ -46,11 +46,10 @@
 
 <div class="p-8 max-w-6xl mx-auto">
 	<header class="flex justify-between items-center mb-8">
-		<div>
+		<div class="flex flex-col gap-1">
 			<h1 class="text-3xl font-bold text-primary">Panel de Gestión</h1>
 			<p class="text-base-content/60">Administrando: <span class="text-primary font-medium">{tournament?.name || 'Cargando...'}</span></p>
 		</div>
-
 		<a href="/tournaments/manage" class="btn btn-outline btn-sm">Volver al Panel</a>
 	</header>
 
@@ -91,6 +90,22 @@
 			{:else}
 				{#if activeTab === 'settings'}
 					<div class="space-y-6">
+						{#if tournament.status === 'registration'}
+							<div class="alert alert-info shadow-sm">
+								<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+								<div>
+									<span>El torneo está en fase de registro.</span>
+								</div>
+							</div>
+						{:else}
+							<div class="alert alert-warning shadow-sm">
+								<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.88m-13.88 0a4.9999999999999996 4.9999999999999996-4.9999999999999996-4.9999999999999996-4.9999999999999996-4.9999999999999996 4.9999999999999996 4.9999999999999996-4.9999999999999996-4.9999999999999996"></path></svg>
+								<div>
+									<span>El registro está cerrado y la configuración bloqueada.</span>
+								</div>
+							</div>
+						{/if}
+
 						<div class="form-control w-full max-w-md">
 							<label class="label" for="tournament-name">
 								<span class="label-text">Nombre del Torneo</span>
@@ -101,15 +116,55 @@
 									type="text"
 									bind:value={tournament.name}
 									class="input input-bordered w-full"
+									disabled={tournament.status !== 'registration'}
 								/>
 								<button
 									class="btn btn-primary"
 									onclick={() => { const t = tournament; if (t) handleUpdateName(t.name); }}
+									disabled={tournament.status !== 'registration'}
 								>
 									Guardar
 								</button>
 							</div>
 						</div>
+
+						<div class="form-control w-full max-w-md">
+							<label class="label" for="tournament-format">
+								<span class="label-text">Formato</span>
+							</label>
+							<div class="flex gap-2">
+								<select
+									id="tournament-format"
+									bind:value={tournament.format}
+									class="select select-bordered w-full"
+									disabled={tournament.status !== 'registration'}
+								>
+									<option value="BO1">Best of 1</option>
+									<option value="BO3">Best of 3</option>
+								</select>
+								<button
+									class="btn btn-primary"
+									onclick={() => { const t = tournament; if (t) handleUpdateName(t.name); /* Note: Needs specific format update logic in service */ }}
+									disabled={tournament.status !== 'registration'}
+								>
+									Guardar
+								</button>
+							</div>
+						</div>
+
+						{#if tournament.status === 'registration'}
+							<div class="card bg-base-300 p-4 rounded-box border border-base-300">
+								<div class="flex items-center justify-between gap-4">
+									<div>
+										<p class="text-sm opacity-70">Código de Invitación:</p>
+										<p class="text-2xl font-mono font-bold text-primary">{tournament.inviteCode || 'Cargando...'}</p>
+									</div>
+									<button class="btn btn-sm btn-outline" onclick={() => { const code = tournament?.inviteCode; if(code) { navigator.clipboard.writeText(code); alert('Código copiado!'); } }}>
+										Copiar Código
+									</button>
+								</div>
+							</div>
+						{/if}
 					</div>
 				{:else if activeTab === 'participants'}
 					<ParticipantManager tournament={tournament} />
@@ -119,17 +174,18 @@
 							tournamentId={tournament.id}
 							round={tournament.currentRound}
 							matches={matches}
+							format={tournament.format}
 						/>
 
 						<div class="flex justify-center pt-6 border-t border-base-300">
 							<button
 								class="btn btn-primary btn-wide"
 								onclick={handleAdvanceRound}
-								disabled={matches.length === 0 || matches.some(m => m.status === 'pending')}
+								disabled={matches.length === 0 || matches.some(m => m.status === 'scheduled')}
 							>
 								{#if matches.length === 0}
 									Esperando Pairings...
-								{:else if matches.some(m => m.status === 'pending')}
+								{:else if matches.some(m => m.status === 'scheduled')}
 									Finalizar Partidas Pendientes
 								{:else}
 									Avanzar a Ronda {tournament.currentRound + 1}

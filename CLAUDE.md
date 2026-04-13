@@ -24,11 +24,25 @@ El backend NUNCA escribe en Firestore directamente desde el cliente — solo el 
 - Si `UID == torneo.createdBy` → es judge, puede operar
 - El backend devuelve JSON, el frontend nunca calcula pairings
 
+## Ciclo de Vida del Torneo
+- **Estado `registration`**: Los jugadores pueden unirse mediante un `InviteCode` único. El judge puede configurar el formato.
+- **Estado `playing`**: Se activa al generar la primera ronda.
+  - El `InviteCode` queda invalidado.
+  - Ya no se pueden unir nuevos jugadores.
+  - El formato (BO1/BO3) queda bloqueado y no puede cambiarse.
+- **Estado `completed`**: Torneo finalizado.
+
 ## Algoritmo suizo (solo backend)
 - Rondas = ceil(log2(jugadores))
-- Puntaje: victoria=3, empate=1, derrota=0 (BO3); victoria=1 (BO1)
+- **Formatos y Validación**:
+  - **BO1**: Solo se permite resultado 1-0 o 0-1. Puntaje: victoria=1, derrota=0.
+  - **BO3**: Solo se permiten resultados 2-0, 2-1, 0-2 o 1-2. Puntaje: victoria=3, empate=1, derrota=0.
 - Tiebreakers: OMW% → GW% → OGW%
 - Editar rondas pasadas recalcula standings pero NO re-parea rondas futuras
+
+## Sistema de Amigos e Invitaciones
+- Los usuarios pueden añadir amigos mediante solicitudes de amistad (`pending` → `accepted`).
+- El judge puede listar sus amigos aceptados para facilitar el envío del código de invitación del torneo.
 
 ## Comandos
 - Frontend: `cd frontend && npm run dev`

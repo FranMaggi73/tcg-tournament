@@ -51,6 +51,7 @@ func main() {
 	repo := tournament.NewRepository(client)
 	swiss := tournament.NewSwissService(repo)
 	h := handlers.NewTournamentHandler(repo, swiss)
+	fh := handlers.NewFriendshipHandler(repo)
 
 	// Router
 	r := gin.Default()
@@ -70,6 +71,11 @@ func main() {
 		authGroup.PATCH("/tournaments/:id/matches/:matchId", h.UpdateMatchResult)
 		authGroup.PATCH("/tournaments/:id/players/:playerId/status", h.UpdatePlayerStatus)
 		authGroup.POST("/tournaments/:id/rollback", h.RollbackRound)
+
+		// Friendship Routes
+		authGroup.POST("/friends", fh.AddFriend)
+		authGroup.GET("/friends", fh.GetFriends)
+		authGroup.PATCH("/friends/:id", fh.UpdateFriendshipStatus)
 	}
 
 	// Graceful Shutdown Setup

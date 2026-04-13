@@ -32,12 +32,25 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
  */
 export const tournamentApi = {
 	/**
-	 * Submit a match result with BO3 scores
+	 * Submit a match result
 	 */
 	async submitMatchResult(tournamentId: string, matchId: string, score1: number, score2: number) {
-		return apiRequest<any>(`/tournaments/${tournamentId}/matches/${matchId}/result`, {
+		return apiRequest<any>(`/tournaments/${tournamentId}/matches/${matchId}`, {
+			method: 'PATCH',
+			body: JSON.stringify({
+				player1Score: score1,
+				player2Score: score2
+			})
+		});
+	},
+
+	/**
+	 * Join a tournament using an invite code
+	 */
+	async joinByCode(code: string, email: string, name: string) {
+		return apiRequest<any>('/tournaments/join', {
 			method: 'POST',
-			body: JSON.stringify({ score1, score2 })
+			body: JSON.stringify({ code, email, name })
 		});
 	},
 
@@ -46,14 +59,6 @@ export const tournamentApi = {
 	 */
 	async getStandings(tournamentId: string) {
 		return apiRequest<any[]>(`/tournaments/${tournamentId}/standings`);
-	},
-
-	/**
-	 * Trigger the backend to advance the tournament to the next round
-	 */
-	async advanceTournament() {
-		// We will get the tournamentId from the route params in the page
-		// but we'll pass it as a parameter for flexibility
 	},
 
 	/**
@@ -66,9 +71,36 @@ export const tournamentApi = {
 	}
 };
 
-// Correcting the advanceTournament to accept the ID
+/**
+ * Trigger the backend to advance the tournament to the next round
+ */
 export async function advanceTournamentApi(tournamentId: string) {
-	return apiRequest<any>(`/tournaments/${tournamentId}/advance`, {
+	return apiRequest<any>(`/tournaments/${tournamentId}/rounds/next`, {
 		method: 'POST'
 	});
 }
+
+/**
+ * Friendship API actions
+ */
+export const friendshipApi = {
+	async addFriend(friendId: string) {
+		return apiRequest<any>('/friends', {
+			method: 'POST',
+			body: JSON.stringify({ friendId })
+		});
+	},
+
+	async getFriends() {
+		return apiRequest<any[]>('/friends', {
+			method: 'GET'
+		});
+	},
+
+	async updateStatus(friendshipId: string, status: 'accepted' | 'declined') {
+		return apiRequest<any>(`/friends/${friendshipId}`, {
+			method: 'PATCH',
+			body: JSON.stringify({ status })
+		});
+	}
+};
