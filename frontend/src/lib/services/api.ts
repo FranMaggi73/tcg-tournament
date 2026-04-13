@@ -32,6 +32,16 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
  */
 export const tournamentApi = {
 	/**
+	 * Create a new tournament via backend API
+	 */
+	async createTournament(name: string, format: 'BO1' | 'BO3') {
+		return apiRequest<any>('/tournaments', {
+			method: 'POST',
+			body: JSON.stringify({ name, format })
+		});
+	},
+
+	/**
 	 * Submit a match result
 	 */
 	async submitMatchResult(tournamentId: string, matchId: string, roundId: string, score1: number, score2: number) {
@@ -73,11 +83,29 @@ export const tournamentApi = {
 	},
 
 	/**
-	 * Delete a tournament (only allowed in registration status)
+	 * Delete a tournament (allowed in registration or completed status)
 	 */
 	async deleteTournament(tournamentId: string) {
 		return apiRequest<any>(`/tournaments/${tournamentId}`, {
 			method: 'DELETE'
+		});
+	},
+
+	/**
+	 * Complete (finalize) a tournament
+	 */
+	async completeTournament(tournamentId: string) {
+		return apiRequest<any>(`/tournaments/${tournamentId}/complete`, {
+			method: 'PATCH'
+		});
+	},
+
+	/**
+	 * Rollback the current round
+	 */
+	async rollbackRound(tournamentId: string) {
+		return apiRequest<any>(`/tournaments/${tournamentId}/rollback`, {
+			method: 'POST'
 		});
 	}
 };
@@ -104,6 +132,12 @@ export const friendshipApi = {
 
 	async getFriends() {
 		return apiRequest<any[]>('/friends', {
+			method: 'GET'
+		});
+	},
+
+	async getPendingRequests() {
+		return apiRequest<any[]>('/friends/pending', {
 			method: 'GET'
 		});
 	},

@@ -166,6 +166,24 @@ func (r *Repository) UpdateFriendshipStatus(ctx context.Context, friendshipID st
 	return err
 }
 
+func (r *Repository) GetPendingRequests(ctx context.Context, userID string) ([]*models.Friendship, error) {
+	iter := r.client.Collection("friendships").Where("user2Id", "==", userID).Where("status", "==", "pending").Documents(ctx)
+	var requests []*models.Friendship
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		var f models.Friendship
+		doc.DataTo(&f)
+		requests = append(requests, &f)
+	}
+	return requests, nil
+}
+
 // --- Round Methods ---
 
 func (r *Repository) CreateRound(ctx context.Context, tournamentID string, rnd *models.Round) error {

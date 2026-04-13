@@ -31,3 +31,23 @@ export function initAuthObserver() {
 		authStore.isLoading = false;
 	});
 }
+
+/**
+ * Returns a promise that resolves when auth state is ready (not loading).
+ * Useful in load functions to wait for auth before checking user state.
+ */
+export function waitForAuth(): Promise<void> {
+	return new Promise((resolve) => {
+		if (!authStore.isLoading) {
+			resolve();
+			return;
+		}
+		// Poll until auth is ready
+		const interval = setInterval(() => {
+			if (!authStore.isLoading) {
+				clearInterval(interval);
+				resolve();
+			}
+		}, 50);
+	});
+}

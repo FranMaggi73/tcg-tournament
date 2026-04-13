@@ -97,3 +97,21 @@ func (h *FriendshipHandler) UpdateFriendshipStatus(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Friendship status updated"})
 }
+
+// GetPendingRequests returns pending friend requests for the current user. (Protected)
+func (h *FriendshipHandler) GetPendingRequests(c *gin.Context) {
+	uid, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+	uidStr := uid.(string)
+
+	requests, err := h.repo.GetPendingRequests(c.Request.Context(), uidStr)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, requests)
+}

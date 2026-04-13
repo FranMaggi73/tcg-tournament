@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"sort"
+	"time"
 
 	"github.com/FranMaggi73/tcg-tournament/backend/internal/models"
 	"github.com/FranMaggi73/tcg-tournament/backend/internal/tournament"
@@ -42,7 +43,12 @@ func (h *TournamentHandler) CreateTournament(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal authentication error"})
 		return
 	}
+
+	// Generate tournament ID and invite code
+	t.ID = uuid.NewString()
 	t.CreatedBy = uidStr
+	t.InviteCode = uuid.NewString()[:8]
+	t.Date = time.Now()
 
 	if t.Status == "" {
 		t.Status = "registration"
@@ -50,9 +56,6 @@ func (h *TournamentHandler) CreateTournament(c *gin.Context) {
 	if t.CurrentRound == 0 && t.TotalRounds == 0 {
 		t.TotalRounds = 0
 	}
-
-	// IMPORTANT: Generate invite code here
-	t.InviteCode = uuid.NewString()[:8]
 
 	if t.Format != "BO1" && t.Format != "BO3" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid format. Must be BO1 or BO3"})
@@ -527,7 +530,7 @@ func (h *TournamentHandler) ExportStandings(c *gin.Context) {
 	})
 }
 
-// DeleteTournament deletes a tournament if it hasn't started yet. (Judge Only)
+// DeleteTournament deletes a tournament if it's in registration or completed status. (Judge Only)
 func (h *TournamentHandler) DeleteTournament(c *gin.Context) {
 	tournamentID := c.Param("id")
 	uid, exists := c.Get("uid")
@@ -553,8 +556,8 @@ func (h *TournamentHandler) DeleteTournament(c *gin.Context) {
 		return
 	}
 
-	if t.Status != "registration" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot delete a tournament that has already started"})
+	if t.Status == "playing" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot delete a tournament that is currently in progress. Finalize or rollback first."})
 		return
 	}
 
@@ -564,4 +567,44 @@ func (h *TournamentHandler) DeleteTournament(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Tournament deleted successfully"})
+}
+
+// CompleteTournament marks a tournament as completed. (Judge Only)
+func (h *TournamentHandler) CompleteTournament(c *gin.Context) {
+	tournamentID := c.Param("id")
+	uid, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	uidStr, ok := uid.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal authentication error"})
+		return
+	}
+
+	t, err := h.repo.GetTournament(c.Request.Context(), tournamentID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Tournament not found"})
+		return
+	}
+
+	if t.CreatedBy != uidStr {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Only the tournament judge can finalize the tournament"})
+		return
+	}
+
+	if t.Status != "playing" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Can only finalize a tournament that is in progress"})
+		return
+	}
+
+	t.Status = "completed"
+	if err := h.repo.UpdateTournament(c.Request.Context(), t); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Tournament finalized successfully", "tournament": t})
 }

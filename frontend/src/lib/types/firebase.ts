@@ -9,7 +9,7 @@ export interface Tournament {
 	id: string;
 	name: string;
 	createdBy: string; // UID of the judge
-	createdAt: Date;
+	date: Date;
 	status: 'registration' | 'playing' | 'completed';
 	currentRound: number;
 	totalRounds: number;

@@ -1,10 +1,13 @@
 import { redirect } from '@sveltejs/kit';
-import { authStore } from '$lib/stores/auth.svelte';
+import { authStore, waitForAuth } from '$lib/stores/auth.svelte';
 import { getTournament } from '$lib/services/tournament';
 import { getTournamentRole } from '$lib/services/roles';
 
 export async function load({ params }) {
 	const { id } = params;
+
+	// Wait for auth state to be ready
+	await waitForAuth();
 
 	// Role check: must be logged in
 	if (!authStore.user) {

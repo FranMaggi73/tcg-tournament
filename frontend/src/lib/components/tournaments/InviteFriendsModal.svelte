@@ -16,13 +16,21 @@
 	let isLoading = $state(true);
 	let isSending = $state(false);
 	let errorMessage = $state('');
+	let loadFailed = $state(false);
 
 	async function loadFriends() {
 		try {
 			isLoading = true;
+			loadFailed = false;
 			friends = await friendshipApi.getFriends();
 		} catch (e: any) {
-			errorMessage = 'Error cargando amigos: ' + e.message;
+			loadFailed = true;
+			// Show friendly error instead of raw "failed to fetch"
+			if (e.message?.includes('Failed to fetch') || e.message?.includes('NetworkError') || e.message?.includes('fetch')) {
+				errorMessage = 'No se pudo conectar con el servidor. Verifica que el backend esté funcionando.';
+			} else {
+				errorMessage = 'Error cargando amigos: ' + e.message;
+			}
 		} finally {
 			isLoading = false;
 		}
@@ -74,7 +82,7 @@
 </script>
 
 <div class="modal modal-open">
-	<div class="modal-box max-w-md">
+	<div class="modal-box max-w-md bg-base-200 border border-base-300">
 		<h3 class="text-xl font-bold text-primary mb-4">Invitar Amigos</h3>
 		<p class="text-sm opacity-70 mb-6">Envía el código de invitación directamente a tus amigos aceptados.</p>
 
@@ -82,37 +90,46 @@
 			<div class="flex justify-center py-12">
 				<span class="loading loading-ring loading-lg text-primary"></span>
 			</div>
-		{:else if errorMessage}
+		{:else if loadFailed && errorMessage}
 			<div class="alert alert-error mb-4 py-2 text-xs">
 				<span>{errorMessage}</span>
 			</div>
-		{/if}
-
-		<div class="space-y-2 max-h-64 overflow-y-auto mb-6">
-			{#each friends as friend}
-				{@const friendUid = getFriendUid(friend)}
-				{@const profile = getCachedProfile(friendUid)}
-				<label class="flex items-center gap-3 p-3 bg-base-300 rounded-box cursor-pointer hover:bg-base-100 transition-colors border border-transparent {selectedFriends.has(friendUid) ? 'border-primary bg-base-100' : ''}">
-					<input
-						type="checkbox"
-						class="checkbox checkbox-primary checkbox-sm"
-						checked={selectedFriends.has(friendUid)}
-						onchange={() => toggleFriend(friendUid)}
-					/>
-					<div class="flex items-center gap-3">
-						<div class="avatar placeholder avatar-xs">
-							<div class="bg-neutral text-neutral-content rounded-full w-8">
-								<span>{profile?.displayName?.charAt(0).toUpperCase() || 'U'}</span>
+		{:else}
+			<div class="space-y-2 max-h-64 overflow-y-auto mb-6">
+				{#each friends as friend}
+					{@const friendUid = getFriendUid(friend)}
+					{@const profile = getCachedProfile(friendUid)}
+					<label class="flex items-center gap-3 p-3 bg-base-300 rounded-box cursor-pointer hover:bg-base-100 transition-colors border border-transparent {selectedFriends.has(friendUid) ? 'border-primary bg-base-100' : ''}">
+						<input
+							type="checkbox"
+							class="checkbox checkbox-primary checkbox-sm"
+							checked={selectedFriends.has(friendUid)}
+							onchange={() => toggleFriend(friendUid)}
+						/>
+						<div class="flex items-center gap-3">
+							<div class="avatar placeholder avatar-xs">
+								<div class="bg-neutral text-neutral-content rounded-full w-8">
+									<span>{profile?.displayName?.charAt(0).toUpperCase() || 'U'}</span>
+								</div>
 							</div>
+							<span class="text-sm font-medium">{profile?.displayName || friendUid}</span>
 						</div>
-						<span class="text-sm font-medium">{profile?.displayName || friendUid}</span>
+					</label>
+				{/each}
+				{#if friends.length === 0}
+					<div class="text-center py-8">
+						<p class="opacity-50 italic text-sm mb-4">No tienes amigos aceptados aún.</p>
+						<a href="/profile" class="btn btn-sm btn-outline btn-primary">Añadir Amigos</a>
 					</div>
-				</label>
-			{/each}
-			{#if friends.length === 0}
-				<p class="text-center py-8 opacity-50 italic text-sm">No tienes amigos aceptados.</p>
+				{/if}
+			</div>
+
+			{#if errorMessage}
+				<div class="alert alert-error mb-4 py-2 text-xs">
+					<span>{errorMessage}</span>
+				</div>
 			{/if}
-		</div>
+		{/if}
 
 		<div class="modal-action">
 			<button class="btn btn-ghost" onclick={onClose} disabled={isSending}>Cancelar</button>

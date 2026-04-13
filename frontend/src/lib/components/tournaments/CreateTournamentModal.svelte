@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { createTournament } from '$lib/services/tournament';
-	import { authStore } from '$lib/stores/auth.svelte';
+	import { goto } from '$app/navigation';
+	import { tournamentApi } from '$lib/services/api';
 
 	let { onClose } = $props<{ onClose: () => void }>();
 	let name = $state('');
@@ -13,8 +13,9 @@
 		errorMessage = '';
 		try {
 			if (!name) throw new Error('El nombre del torneo es obligatorio');
-			await createTournament(name, authStore.user!.uid, format);
-			onClose();
+			const result = await tournamentApi.createTournament(name, format);
+			// Navigate to the manage page for the new tournament
+			goto(`/tournaments/${result.id}/manage`);
 		} catch (e: any) {
 			errorMessage = e.message;
 		} finally {

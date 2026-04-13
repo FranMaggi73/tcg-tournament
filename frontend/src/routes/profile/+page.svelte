@@ -38,6 +38,7 @@
 				};
 			}
 			await loadFriends();
+			await loadPendingRequests();
 			await loadNotifications();
 		} catch (e: any) {
 			errorMessage = e.message;
@@ -52,6 +53,14 @@
 			friends = all;
 		} catch (e: any) {
 			console.error('Error loading friends:', e);
+		}
+	}
+
+	async function loadPendingRequests() {
+		try {
+			pendingRequests = await friendshipApi.getPendingRequests();
+		} catch (e: any) {
+			console.error('Error loading pending requests:', e);
 		}
 	}
 
@@ -90,6 +99,25 @@
 			alert(`Error: ${e.message}`);
 		} finally {
 			isAddingFriend = false;
+		}
+	}
+
+	async function handleAcceptRequest(friendshipId: string) {
+		try {
+			await friendshipApi.updateStatus(friendshipId, 'accepted');
+			await loadFriends();
+			await loadPendingRequests();
+		} catch (e: any) {
+			alert(`Error al aceptar solicitud: ${e.message}`);
+		}
+	}
+
+	async function handleDeclineRequest(friendshipId: string) {
+		try {
+			await friendshipApi.updateStatus(friendshipId, 'declined');
+			await loadPendingRequests();
+		} catch (e: any) {
+			alert(`Error al rechazar solicitud: ${e.message}`);
 		}
 	}
 
@@ -225,6 +253,47 @@
 									>
 										Unirse
 									</button>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				</div>
+
+				<!-- Pending Friend Requests Card -->
+				<div class="card bg-base-200 shadow-xl border border-base-300 p-8">
+					<h2 class="text-xl font-bold text-primary mb-6">Solicitudes de Amistad</h2>
+
+					{#if pendingRequests.length === 0}
+						<p class="text-center py-8 opacity-50 italic">No tienes solicitudes de amistad pendientes.</p>
+					{:else}
+						<div class="space-y-3">
+							{#each pendingRequests as request}
+								<div class="flex items-center justify-between p-4 bg-base-300 rounded-box border border-base-300">
+									<div class="flex items-center gap-3">
+										<div class="avatar placeholder">
+											<div class="bg-neutral text-neutral-content rounded-full w-10">
+												<span class="text-xs">{request.user1Id.charAt(0).toUpperCase()}</span>
+											</div>
+										</div>
+										<div>
+											<p class="text-sm font-bold">{request.user1Id}</p>
+											<p class="text-xs opacity-50">Quiere ser tu amigo</p>
+										</div>
+									</div>
+									<div class="flex gap-2">
+										<button
+											class="btn btn-success btn-xs"
+											onclick={() => handleAcceptRequest(request.id)}
+										>
+											Aceptar
+										</button>
+										<button
+											class="btn btn-error btn-xs btn-outline"
+											onclick={() => handleDeclineRequest(request.id)}
+										>
+											Rechazar
+										</button>
+									</div>
 								</div>
 							{/each}
 						</div>

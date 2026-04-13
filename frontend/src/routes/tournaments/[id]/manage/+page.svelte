@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { subscribeToTournament, updateTournament, subscribeToMatches, findRound, subscribeToPlayers } from '$lib/services/tournament';
-	import { advanceTournamentApi } from '$lib/services/api';
+	import { advanceTournamentApi, tournamentApi } from '$lib/services/api';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import type { Tournament, Match, Player } from '$lib/types/firebase';
 	import ParticipantManager from '$lib/components/tournaments/ParticipantManager.svelte';
@@ -19,6 +20,8 @@
 	let activeTab = $state('settings');
 	let isInviteModalOpen = $state(false);
 	let isAdvancing = $state(false);
+	let isDeleting = $state(false);
+	let isFinalizing = $state(false);
 
 	onMount(() => {
 		unsubscribeTournament = subscribeToTournament(data.tournamentId, async (updatedT) => {
@@ -66,6 +69,33 @@
 			alert(`Error al avanzar ronda: ${e.message}`);
 		} finally {
 			isAdvancing = false;
+		}
+	}
+
+	async function handleDeleteTournament() {
+		if (!tournament) return;
+		if (!confirm(`¿Estás seguro de que quieres eliminar el torneo "${tournament.name}"? Esta acción no se puede deshacer.`)) return;
+		isDeleting = true;
+		try {
+			await tournamentApi.deleteTournament(tournament.id);
+			goto('/tournaments/manage');
+		} catch (e: any) {
+			alert(`Error al eliminar torneo: ${e.message}`);
+		} finally {
+			isDeleting = false;
+		}
+	}
+
+	async function handleFinalizeTournament() {
+		if (!tournament) return;
+		if (!confirm('¿Estás seguro de que quieres finalizar el torneo? No se podrán hacer más cambios.')) return;
+		isFinalizing = true;
+		try {
+			await tournamentApi.completeTournament(tournament.id);
+		} catch (e: any) {
+			alert(`Error al finalizar torneo: ${e.message}`);
+		} finally {
+			isFinalizing = false;
 		}
 	}
 
@@ -126,11 +156,18 @@
 									<span>El torneo está en fase de registro.</span>
 								</div>
 							</div>
-						{:else}
+						{:else if tournament.status === 'playing'}
 							<div class="alert alert-warning shadow-sm">
 								<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.88m-13.88 0a4.9999999999999996-4.9999999999999996-4.9999999999999996 4.9999999999999996-4.9999999999999996"></path></svg>
 								<div>
-									<span>El registro está cerrado y la configuración bloqueada.</span>
+									<span>El torneo está en curso. El registro está cerrado y la configuración bloqueada.</span>
+								</div>
+							</div>
+						{:else if tournament.status === 'completed'}
+							<div class="alert alert-success shadow-sm">
+								<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+								<div>
+									<span>El torneo ha finalizado.</span>
 								</div>
 							</div>
 						{/if}
@@ -197,6 +234,54 @@
 										</button>
 									</div>
 								</div>
+							</div>
+						{/if}
+
+						{#if tournament.status === 'playing'}
+							<div class="card bg-warning/10 p-4 rounded-box border border-warning/30">
+								<div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+									<div class="text-center sm:text-left">
+										<p class="font-medium">Torneo en curso</p>
+										<p class="text-sm opacity-70">Puedes finalizar el torneo en cualquier momento.</p>
+									</div>
+									<button
+										class="btn btn-sm btn-warning"
+										onclick={handleFinalizeTournament}
+										disabled={isFinalizing}
+									>
+										{#if isFinalizing}
+											<span class="loading loading-spinner"></span>
+										{/if}
+										Finalizar Torneo
+									</button>
+								</div>
+							</div>
+						{/if}
+
+						{#if tournament.status === 'completed'}
+							<div class="card bg-success/10 p-4 rounded-box border border-success/30">
+								<div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+									<div class="text-center sm:text-left">
+										<p class="font-medium text-success">Torneo finalizado</p>
+										<p class="text-sm opacity-70">El torneo ha concluido.</p>
+									</div>
+								</div>
+							</div>
+						{/if}
+
+						{#if tournament.status !== 'playing'}
+							<div class="divider"></div>
+							<div class="flex justify-end">
+								<button
+									class="btn btn-sm btn-error btn-outline"
+									onclick={handleDeleteTournament}
+									disabled={isDeleting}
+								>
+									{#if isDeleting}
+										<span class="loading loading-spinner"></span>
+									{/if}
+									Eliminar Torneo
+								</button>
 							</div>
 						{/if}
 					</div>

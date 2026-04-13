@@ -55,6 +55,7 @@ func main() {
 
 	// Router
 	r := gin.Default()
+	r.Use(middleware.CORSMiddleware())
 
 	// Public Routes
 	r.GET("/tournaments/:id", h.GetTournament)
@@ -69,6 +70,7 @@ func main() {
 	{
 		authGroup.POST("/tournaments", h.CreateTournament)
 		authGroup.DELETE("/tournaments/:id", h.DeleteTournament)
+		authGroup.PATCH("/tournaments/:id/complete", h.CompleteTournament)
 		authGroup.POST("/tournaments/:id/rounds/next", h.NextRound)
 		authGroup.PATCH("/tournaments/:id/matches/:matchId", h.UpdateMatchResult)
 		authGroup.PATCH("/tournaments/:id/players/:playerId/status", h.UpdatePlayerStatus)
@@ -77,6 +79,7 @@ func main() {
 		// Friendship Routes
 		authGroup.POST("/friends", fh.AddFriend)
 		authGroup.GET("/friends", fh.GetFriends)
+		authGroup.GET("/friends/pending", fh.GetPendingRequests)
 		authGroup.PATCH("/friends/:id", fh.UpdateFriendshipStatus)
 	}
 
