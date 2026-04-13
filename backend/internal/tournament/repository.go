@@ -200,6 +200,18 @@ func (r *Repository) DeleteRound(ctx context.Context, tournamentID string, round
 
 // --- Match Methods ---
 
+func (r *Repository) GetMatch(ctx context.Context, tournamentID string, roundID string, matchID string) (*models.Match, error) {
+	doc, err := r.client.Collection("tournaments").Doc(tournamentID).
+		Collection("rounds").Doc(roundID).
+		Collection("matches").Doc(matchID).Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var m models.Match
+	doc.DataTo(&m)
+	return &m, nil
+}
+
 func (r *Repository) CreateMatch(ctx context.Context, tournamentID string, roundID string, m *models.Match) error {
 	_, err := r.client.Collection("tournaments").Doc(tournamentID).
 		Collection("rounds").Doc(roundID).

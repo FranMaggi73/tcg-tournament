@@ -3,7 +3,9 @@
     "allow": [
       "Bash(ls:*)",
       "Bash(npm run:*)",
-      "Bash(go test:*)"
+      "Bash(go test:*)",
+      "Bash(go build:*)",
+      "Bash(npx svelte-check:*)"
     ]
   }
 }

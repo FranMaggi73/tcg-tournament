@@ -13,26 +13,42 @@ export interface Tournament {
 	status: 'registration' | 'playing' | 'completed';
 	currentRound: number;
 	totalRounds: number;
-	participants: string[]; // Array of user UIDs
 	format: 'BO1' | 'BO3';
 	inviteCode: string;
+}
+
+export interface Player {
+	id: string;
+	name: string;
+	email: string;
+	totalScore: number;
+	wins: number;
+	losses: number;
+	draws: number;
+	omw: number; // Opponent Match Win %
+	gw: number;  // Game Win %
+	ogw: number; // Opponent Game Win %
+	status: 'active' | 'dropped';
+	hadBye: boolean;
+}
+
+export interface Round {
+	id: string;
+	tournamentId: string;
+	roundNumber: number;
+	status: 'pairing' | 'playing' | 'completed';
+	createdAt: Date;
 }
 
 export interface Match {
 	id: string;
 	roundId: string;
-	player1: string; // UID
-	player2: string; // UID
+	player1Id: string; // UID
+	player2Id: string; // UID, "BYE" for byes
 	player1Score: number;
 	player2Score: number;
-	winner: string | null; // UID of the winner
+	winnerId: string | null; // UID of the winner, empty string for draw
 	status: 'scheduled' | 'completed';
-	updatedAt: Date;
-}
-
-export interface Round {
-	number: number;
-	matches: Match[];
 }
 
 export interface UserProfile {
@@ -41,15 +57,6 @@ export interface UserProfile {
 	photoURL: string | null;
 	bio?: string;
 	updatedAt: Date;
-}
-
-export interface StandingEntry {
-	rank: number;
-	uid: string;
-	points: number;
-	omw: number; // Opponent Match Win %
-	gw: number;  // Game Win %
-	ogw: number; // Opponent Game Win %
 }
 
 export interface Friendship {

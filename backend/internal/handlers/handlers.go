@@ -263,21 +263,28 @@ func (h *TournamentHandler) UpdateMatchResult(c *gin.Context) {
 		return
 	}
 
-	var m models.Match
-	if err := c.ShouldBindJSON(&m); err != nil {
+	var scoreReq struct {
+		Player1Score int `json:"player1Score"`
+		Player2Score int `json:"player2Score"`
+		RoundID      string `json:"roundId"`
+	}
+	if err := c.ShouldBindJSON(&scoreReq); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	switch t.Format {
 	case "BO3":
-		if !((m.Player1Score == 2 && (m.Player2Score == 0 || m.Player2Score == 1)) ||
-			(m.Player2Score == 2 && (m.Player1Score == 0 || m.Player1Score == 1))) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid BO3 score. One player must have exactly 2 wins and the other 0 or 1"})
+		// Valid BO3 scores: 2-0, 2-1, 0-2, 1-2 (victory) OR 1-1 (draw)
+		isVictory := (scoreReq.Player1Score == 2 && (scoreReq.Player2Score == 0 || scoreReq.Player2Score == 1)) ||
+			(scoreReq.Player2Score == 2 && (scoreReq.Player1Score == 0 || scoreReq.Player1Score == 1))
+		isDraw := scoreReq.Player1Score == 1 && scoreReq.Player2Score == 1
+		if !(isVictory || isDraw) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid BO3 score. Valid scores are: 2-0, 2-1, 0-2, 1-2, or 1-1 for draw"})
 			return
 		}
 	case "BO1":
-		if !((m.Player1Score == 1 && m.Player2Score == 0) || (m.Player2Score == 1 && m.Player1Score == 0)) {
+		if !((scoreReq.Player1Score == 1 && scoreReq.Player2Score == 0) || (scoreReq.Player2Score == 1 && scoreReq.Player1Score == 0)) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid BO1 score. One player must have 1 win and the other 0"})
 			return
 		}
@@ -286,7 +293,35 @@ func (h *TournamentHandler) UpdateMatchResult(c *gin.Context) {
 		return
 	}
 
-	if err := h.swiss.ProcessMatchResult(c.Request.Context(), tournamentID, m.RoundID, matchID, &m); err != nil {
+	// Fetch the existing match to get player IDs and derive the winner
+	existingMatch, err := h.repo.GetMatch(c.Request.Context(), tournamentID, scoreReq.RoundID, matchID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Match not found"})
+		return
+	}
+
+	// Build the updated match preserving player IDs from the existing match
+	m := &models.Match{
+		ID:           existingMatch.ID,
+		RoundID:      existingMatch.RoundID,
+		Player1ID:    existingMatch.Player1ID,
+		Player2ID:    existingMatch.Player2ID,
+		Player1Score: scoreReq.Player1Score,
+		Player2Score: scoreReq.Player2Score,
+		Status:       "completed",
+	}
+
+	// Derive winner from scores: empty WinnerID means draw
+	switch {
+	case scoreReq.Player1Score > scoreReq.Player2Score:
+		m.WinnerID = m.Player1ID
+	case scoreReq.Player2Score > scoreReq.Player1Score:
+		m.WinnerID = m.Player2ID
+	default:
+		m.WinnerID = "" // draw
+	}
+
+	if err := h.swiss.ProcessMatchResult(c.Request.Context(), tournamentID, m.RoundID, matchID, m); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update match result atomically"})
 		return
 	}
@@ -368,10 +403,40 @@ func (h *TournamentHandler) RollbackRound(c *gin.Context) {
 	}
 
 	if t.CurrentRound == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot rollback the first round before it starts"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot rollback: no rounds have been generated yet"})
 		return
 	}
 
+	// 1. Delete the current round and all its matches from Firestore
+	rounds, err := h.repo.GetRoundsByTournament(c.Request.Context(), tournamentID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch rounds"})
+		return
+	}
+
+	for _, rnd := range rounds {
+		if rnd.RoundNumber == t.CurrentRound {
+			// Delete all matches in this round first
+			matches, err := h.repo.GetMatchesByRound(c.Request.Context(), tournamentID, rnd.ID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch matches for round"})
+				return
+			}
+			for _, m := range matches {
+				if err := h.repo.DeleteMatch(c.Request.Context(), tournamentID, rnd.ID, m.ID); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete match"})
+					return
+				}
+			}
+			// Then delete the round document itself
+			if err := h.repo.DeleteRound(c.Request.Context(), tournamentID, rnd.ID); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete round"})
+				return
+			}
+		}
+	}
+
+	// 2. Reset all player stats and recalculate from remaining rounds
 	players, err := h.repo.GetPlayersByTournament(c.Request.Context(), tournamentID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch players"})
@@ -383,21 +448,34 @@ func (h *TournamentHandler) RollbackRound(c *gin.Context) {
 		p.Wins = 0
 		p.Losses = 0
 		p.Draws = 0
+		p.OMW = 0
+		p.GW = 0
+		p.OGW = 0
 		h.repo.UpdatePlayer(c.Request.Context(), tournamentID, p)
 	}
 
+	// 3. Decrement the round counter
 	t.CurrentRound--
+
+	// If we rolled back to round 0, the tournament goes back to registration
+	if t.CurrentRound == 0 {
+		t.Status = "registration"
+	}
+
 	if err := h.repo.UpdateTournament(c.Request.Context(), t); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update tournament round"})
 		return
 	}
 
-	if err := h.swiss.UpdateStandings(c.Request.Context(), tournamentID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to recalculate standings"})
-		return
+	// 4. Recalculate standings from remaining matches (if any rounds left)
+	if t.CurrentRound > 0 {
+		if err := h.swiss.UpdateStandings(c.Request.Context(), tournamentID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to recalculate standings"})
+			return
+		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Round rolled back and standings recalculated"})
+	c.JSON(http.StatusOK, gin.H{"message": "Round rolled back, matches deleted, and standings recalculated"})
 }
 
 // ExportStandings returns a formatted summary of the tournament standings. (Public)

@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { subscribeToTournament, updateTournament, subscribeToMatches } from '$lib/services/tournament';
+	import { subscribeToTournament, updateTournament, subscribeToMatches, findRound, subscribeToPlayers } from '$lib/services/tournament';
 	import { advanceTournamentApi } from '$lib/services/api';
-	import type { Tournament, Match } from '$lib/types/firebase';
+	import { authStore } from '$lib/stores/auth.svelte';
+	import type { Tournament, Match, Player } from '$lib/types/firebase';
 	import ParticipantManager from '$lib/components/tournaments/ParticipantManager.svelte';
 	import MatchResultEditor from '$lib/components/tournaments/MatchResultEditor.svelte';
 	import InviteFriendsModal from '$lib/components/tournaments/InviteFriendsModal.svelte';
@@ -10,25 +11,45 @@
 	let { data } = $props<{ data: { tournamentId: string } }>();
 	let tournament = $state<Tournament | null>(null);
 	let matches = $state<Match[]>([]);
+	let players = $state<Player[]>([]);
+	let currentRoundDocId = $state<string>('');
 	let unsubscribeTournament: () => void;
 	let unsubscribeMatches: () => void;
+	let unsubscribePlayers: () => void;
 	let activeTab = $state('settings');
 	let isInviteModalOpen = $state(false);
+	let isAdvancing = $state(false);
 
 	onMount(() => {
-		unsubscribeTournament = subscribeToTournament(data.tournamentId, (updatedT) => {
+		unsubscribeTournament = subscribeToTournament(data.tournamentId, async (updatedT) => {
 			tournament = updatedT;
-			// Re-subscribe to matches if the round changed
-			if (unsubscribeMatches) unsubscribeMatches();
-			unsubscribeMatches = subscribeToMatches(data.tournamentId, updatedT.currentRound, (updatedM) => {
-				matches = updatedM;
-			});
+
+			// Resolve the round document ID for the current round
+			if (updatedT.currentRound > 0) {
+				const round = await findRound(data.tournamentId, updatedT.currentRound);
+				if (round) {
+					// Re-subscribe to matches if the round changed
+					if (unsubscribeMatches) unsubscribeMatches();
+					currentRoundDocId = round.id;
+					unsubscribeMatches = subscribeToMatches(data.tournamentId, round.id, (updatedM) => {
+						matches = updatedM;
+					});
+				}
+			} else {
+				matches = [];
+				currentRoundDocId = '';
+			}
+		});
+
+		unsubscribePlayers = subscribeToPlayers(data.tournamentId, (updatedP) => {
+			players = updatedP;
 		});
 	});
 
 	onDestroy(() => {
 		if (unsubscribeTournament) unsubscribeTournament();
 		if (unsubscribeMatches) unsubscribeMatches();
+		if (unsubscribePlayers) unsubscribePlayers();
 	});
 
 	async function handleUpdateName(newName: string) {
@@ -38,12 +59,18 @@
 
 	async function handleAdvanceRound() {
 		if (!tournament) return;
+		isAdvancing = true;
 		try {
 			await advanceTournamentApi(tournament.id);
 		} catch (e: any) {
 			alert(`Error al avanzar ronda: ${e.message}`);
+		} finally {
+			isAdvancing = false;
 		}
 	}
+
+	// Count active players
+	let activePlayerCount = $derived(players.filter(p => p.status === 'active').length);
 </script>
 
 <div class="p-8 max-w-6xl mx-auto">
@@ -101,7 +128,7 @@
 							</div>
 						{:else}
 							<div class="alert alert-warning shadow-sm">
-								<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.88m-13.88 0a4.9999999999999996 4.9999999999999996-4.9999999999999996-4.9999999999999996 4.9999999999999996 4.9999999999999996-4.9999999999999996"></path></svg>
+								<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.88m-13.88 0a4.9999999999999996-4.9999999999999996-4.9999999999999996 4.9999999999999996-4.9999999999999996"></path></svg>
 								<div>
 									<span>El registro está cerrado y la configuración bloqueada.</span>
 								</div>
@@ -146,7 +173,7 @@
 								</select>
 								<button
 									class="btn btn-primary"
-									onclick={() => { const t = tournament; if (t) handleUpdateName(t.name); /* Note: Needs specific format update logic in service */ }}
+									onclick={() => { const t = tournament; if (t) updateTournament(t.id, { format: t.format }); }}
 									disabled={tournament.status !== 'registration'}
 								>
 									Guardar
@@ -174,25 +201,34 @@
 						{/if}
 					</div>
 				{:else if activeTab === 'participants'}
-					<ParticipantManager tournament={tournament} />
+					<ParticipantManager {tournament} {players} />
 				{:else if activeTab === 'matches'}
 					<div class="space-y-6">
-						<MatchResultEditor
-							tournamentId={tournament.id}
-							round={tournament.currentRound}
-							matches={matches}
-							format={tournament.format}
-						/>
+						{#if currentRoundDocId}
+							<MatchResultEditor
+								tournamentId={tournament.id}
+								roundDocId={currentRoundDocId}
+								matches={matches}
+								format={tournament.format}
+							/>
+						{:else}
+							<div class="text-center py-10 text-base-content/50">
+								No hay rondas generadas aún. Avanza a la siguiente ronda para generar pairings.
+							</div>
+						{/if}
 
 						<div class="flex justify-center pt-6 border-t border-base-300">
 							<button
 								class="btn btn-primary btn-wide"
 								onclick={handleAdvanceRound}
-								disabled={matches.length === 0 || matches.some(m => m.status === 'scheduled')}
+								disabled={isAdvancing || tournament.status === 'completed'}
 							>
-								{#if matches.length === 0}
-									Esperando Pairings...
-								{:else if matches.some(m => m.status === 'scheduled')}
+								{#if isAdvancing}
+									<span class="loading loading-spinner"></span>
+								{/if}
+								{#if tournament.currentRound === 0}
+									Iniciar Torneo (Ronda 1)
+								{:else if matches.length > 0 && matches.some(m => m.status === 'scheduled')}
 									Finalizar Partidas Pendientes
 								{:else}
 									Avanzar a Ronda {tournament.currentRound + 1}
@@ -205,9 +241,9 @@
 		</div>
 	</div>
 
-	{#if isInviteModalOpen}
+	{#if isInviteModalOpen && tournament}
 		<InviteFriendsModal
-			tournament={tournament}
+			{tournament}
 			onClose={() => isInviteModalOpen = false}
 		/>
 	{/if}

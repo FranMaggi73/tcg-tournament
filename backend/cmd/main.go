@@ -61,12 +61,14 @@ func main() {
 	r.GET("/tournaments/:id/standings", h.GetStandings)
 	r.GET("/tournaments/:id/export", h.ExportStandings)
 	r.POST("/tournaments/:id/players", h.RegisterPlayer)
+	r.POST("/tournaments/join", h.JoinTournamentByCode)
 
 	// Protected Routes (Require Auth)
 	authGroup := r.Group("/")
 	authGroup.Use(middleware.AuthMiddleware(authClient))
 	{
 		authGroup.POST("/tournaments", h.CreateTournament)
+		authGroup.DELETE("/tournaments/:id", h.DeleteTournament)
 		authGroup.POST("/tournaments/:id/rounds/next", h.NextRound)
 		authGroup.PATCH("/tournaments/:id/matches/:matchId", h.UpdateMatchResult)
 		authGroup.PATCH("/tournaments/:id/players/:playerId/status", h.UpdatePlayerStatus)

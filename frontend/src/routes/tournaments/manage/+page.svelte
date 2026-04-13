@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { getTournamentsByJudge, createTournament } from '$lib/services/tournament';
+	import { getTournamentsByJudge, subscribeToPlayers } from '$lib/services/tournament';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import CreateTournamentModal from '$lib/components/tournaments/CreateTournamentModal.svelte';
+	import type { Tournament } from '$lib/types/firebase';
 
-	let tournaments = $state<any[]>([]);
+	let tournaments = $state<Tournament[]>([]);
 	let isModalOpen = $state(false);
 	let isLoading = $state(true);
 
@@ -23,10 +24,6 @@
 	onMount(() => {
 		loadTournaments();
 	});
-
-	async function handleRefresh() {
-		await loadTournaments();
-	}
 </script>
 
 <div class="p-8 max-w-5xl mx-auto">
@@ -57,9 +54,10 @@
 							<h2 class="card-title text-xl group-hover:text-primary transition-colors">{t.name}</h2>
 							<div class="badge badge-secondary">{t.status}</div>
 						</div>
-						<p class="text-sm text-base-content/60 mt-2">
-							Participantes: {t.participants.length} | Ronda: {t.currentRound}
-						</p>
+						<div class="flex items-center gap-4 mt-2 text-sm text-base-content/60">
+							<span>Formato: {t.format}</span>
+							<span>Ronda: {t.currentRound}</span>
+						</div>
 						<div class="card-actions justify-end mt-4">
 							<a href="/tournaments/{t.id}/manage" class="btn btn-outline btn-sm">Administrar</a>
 						</div>

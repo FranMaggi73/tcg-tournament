@@ -1,25 +1,54 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { subscribeToTournament, subscribeToMatches } from '$lib/services/tournament';
+	import { subscribeToTournament, subscribeToMatches, findRound, subscribeToPlayers } from '$lib/services/tournament';
+	import { resolveUserProfiles } from '$lib/services/user';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { getTournamentRole } from '$lib/services/roles';
-	import type { Tournament, Match } from '$lib/types/firebase';
+	import type { Tournament, Match, Player } from '$lib/types/firebase';
 
 	let { data } = $props<{ data: { tournamentId: string } }>();
 	let tournament = $state<Tournament | null>(null);
 	let matches = $state<Match[]>([]);
+	let players = $state<Player[]>([]);
+	let profiles = $state<Record<string, any>>({});
 	let role = $state<'judge' | 'viewer'>('viewer');
 	let unsubscribeTournament: () => void;
 	let unsubscribeMatches: () => void;
+	let unsubscribePlayers: () => void;
 
 	onMount(() => {
-		unsubscribeTournament = subscribeToTournament(data.tournamentId, (updatedT) => {
+		unsubscribeTournament = subscribeToTournament(data.tournamentId, async (updatedT) => {
 			tournament = updatedT;
 			role = getTournamentRole(authStore.user?.uid ?? null, updatedT);
 
-			if (unsubscribeMatches) unsubscribeMatches();
-			unsubscribeMatches = subscribeToMatches(data.tournamentId, updatedT.currentRound, (updatedM) => {
-				matches = updatedM;
+			// Resolve the round document ID
+			if (updatedT.currentRound > 0) {
+				const round = await findRound(data.tournamentId, updatedT.currentRound);
+				if (round) {
+					if (unsubscribeMatches) unsubscribeMatches();
+					unsubscribeMatches = subscribeToMatches(data.tournamentId, round.id, (updatedM) => {
+						matches = updatedM;
+						// Resolve profiles for match players
+						const uids = updatedM.flatMap((m: Match) => {
+							const ids = [m.player1Id];
+							if (m.player2Id !== 'BYE') ids.push(m.player2Id);
+							return ids;
+						});
+						resolveUserProfiles(uids).then(resolved => {
+							profiles = resolved;
+						});
+					});
+				}
+			} else {
+				matches = [];
+			}
+		});
+
+		unsubscribePlayers = subscribeToPlayers(data.tournamentId, (updatedP) => {
+			players = updatedP;
+			const uids = updatedP.map(p => p.id);
+			resolveUserProfiles(uids).then(resolved => {
+				profiles = { ...profiles, ...resolved };
 			});
 		});
 	});
@@ -27,7 +56,10 @@
 	onDestroy(() => {
 		if (unsubscribeTournament) unsubscribeTournament();
 		if (unsubscribeMatches) unsubscribeMatches();
+		if (unsubscribePlayers) unsubscribePlayers();
 	});
+
+	let activePlayerCount = $derived(players.filter(p => p.status === 'active').length);
 </script>
 
 <div class="p-8 max-w-5xl mx-auto">
@@ -35,8 +67,8 @@
 		<div>
 			<h1 class="text-4xl font-bold text-primary mb-2">{tournament?.name || 'Cargando Torneo...'}</h1>
 			<div class="flex items-center gap-3">
-				<span class="badge badge-secondary py-3 px-4">Ronda {tournament?.currentRound || 1}</span>
-				<span class="text-base-content/60">• {tournament?.participants.length || 0} Participantes</span>
+				<span class="badge badge-secondary py-3 px-4">Ronda {tournament?.currentRound || 0}</span>
+				<span class="text-base-content/60">• {activePlayerCount} Participantes</span>
 			</div>
 		</div>
 
@@ -58,23 +90,36 @@
 						{/if}
 					</div>
 
-					<div class="flex flex-col gap-3">
-						<div class="flex items-center justify-between p-3 rounded-lg {match.winner === match.player1 ? 'bg-success/20 ring-1 ring-success' : 'bg-base-300'}">
-							<span class="font-bold">{match.player1}</span>
-							{#if match.winner === match.player1}
-								<span class="badge badge-success text-xs">Ganador</span>
-							{/if}
+					{#if match.player2Id === 'BYE'}
+						<div class="text-center py-2">
+							<span class="font-bold">{profiles[match.player1Id]?.displayName || match.player1Id}</span>
+							<span class="badge badge-info ml-2">BYE</span>
 						</div>
+					{:else}
+						<div class="flex flex-col gap-3">
+							<div class="flex items-center justify-between p-3 rounded-lg {match.winnerId === match.player1Id ? 'bg-success/20 ring-1 ring-success' : 'bg-base-300'}">
+								<span class="font-bold">{profiles[match.player1Id]?.displayName || match.player1Id}</span>
+								{#if match.status === 'completed'}
+									<span class="text-sm opacity-60">{match.player1Score}</span>
+								{/if}
+								{#if match.winnerId === match.player1Id}
+									<span class="badge badge-success text-xs">Ganador</span>
+								{/if}
+							</div>
 
-						<div class="text-center text-xs font-bold opacity-30">VS</div>
+							<div class="text-center text-xs font-bold opacity-30">VS</div>
 
-						<div class="flex items-center justify-between p-3 rounded-lg {match.winner === match.player2 ? 'bg-success/20 ring-1 ring-success' : 'bg-base-300'}">
-							<span class="font-bold">{match.player2}</span>
-							{#if match.winner === match.player2}
-								<span class="badge badge-success text-xs">Ganador</span>
-							{/if}
+							<div class="flex items-center justify-between p-3 rounded-lg {match.winnerId === match.player2Id ? 'bg-success/20 ring-1 ring-success' : 'bg-base-300'}">
+								<span class="font-bold">{profiles[match.player2Id]?.displayName || match.player2Id}</span>
+								{#if match.status === 'completed'}
+									<span class="text-sm opacity-60">{match.player2Score}</span>
+								{/if}
+								{#if match.winnerId === match.player2Id}
+									<span class="badge badge-success text-xs">Ganador</span>
+								{/if}
+							</div>
 						</div>
-					</div>
+					{/if}
 				</div>
 			</div>
 		{/each}

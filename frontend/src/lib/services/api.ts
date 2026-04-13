@@ -34,12 +34,13 @@ export const tournamentApi = {
 	/**
 	 * Submit a match result
 	 */
-	async submitMatchResult(tournamentId: string, matchId: string, score1: number, score2: number) {
+	async submitMatchResult(tournamentId: string, matchId: string, roundId: string, score1: number, score2: number) {
 		return apiRequest<any>(`/tournaments/${tournamentId}/matches/${matchId}`, {
 			method: 'PATCH',
 			body: JSON.stringify({
 				player1Score: score1,
-				player2Score: score2
+				player2Score: score2,
+				roundId
 			})
 		});
 	},
@@ -62,11 +63,21 @@ export const tournamentApi = {
 	},
 
 	/**
-	 * Mark a participant as dropped
+	 * Drop a participant from a tournament
 	 */
-	async dropParticipant(tournamentId: string, uid: string) {
-		return apiRequest<any>(`/tournaments/${tournamentId}/participants/${uid}/drop`, {
-			method: 'POST'
+	async dropParticipant(tournamentId: string, playerId: string) {
+		return apiRequest<any>(`/tournaments/${tournamentId}/players/${playerId}/status`, {
+			method: 'PATCH',
+			body: JSON.stringify({ status: 'dropped' })
+		});
+	},
+
+	/**
+	 * Delete a tournament (only allowed in registration status)
+	 */
+	async deleteTournament(tournamentId: string) {
+		return apiRequest<any>(`/tournaments/${tournamentId}`, {
+			method: 'DELETE'
 		});
 	}
 };
