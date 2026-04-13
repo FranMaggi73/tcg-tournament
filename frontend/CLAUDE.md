@@ -40,7 +40,7 @@ src/
 │   └── types/
 │       └── firebase.ts       # TypeScript interfaces (Tournament, Player, Match, Round, etc.)
 └── routes/
-    ├── +layout.svelte        # Init auth observer
+    ├── +layout.svelte        # Init auth observer + Global Profile Navigation
     ├── +page.svelte          # Landing (login + join by code)
     ├── profile/+page.svelte  # User profile, friends, notifications
     └── tournaments/
