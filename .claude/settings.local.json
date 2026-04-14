@@ -9,7 +9,9 @@
       "Bash(npx firebase:*)",
       "Bash(npm install:*)",
       "Bash(firebase:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(dir /b /s *.rules)",
+      "Bash(dir /b /s firestore*)"
     ]
   }
 }

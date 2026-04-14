@@ -4,6 +4,7 @@
 	import { getUserProfile, updateUserProfile, resolveUserProfiles } from '$lib/services/user';
 	import { friendshipApi, tournamentApi } from '$lib/services/api';
 	import { notificationService } from '$lib/services/notifications';
+	import { refreshInvitationCount } from '$lib/stores/notifications.svelte';
 	import type { UserProfile, Friendship, Notification } from '$lib/types/firebase';
 
 	let { data } = $props();
@@ -58,9 +59,12 @@
 					updatedAt: new Date()
 				};
 			}
-			await loadFriends();
-			await loadPendingRequests();
-			await loadNotifications();
+			await Promise.all([
+				loadFriends(),
+				loadPendingRequests(),
+				loadNotifications(),
+				refreshInvitationCount()
+			]);
 		} catch (e: any) {
 			errorMessage = e.message;
 		} finally {
@@ -110,9 +114,12 @@
 		if (!authStore.user) return;
 		isNotifLoading = true;
 		try {
-			notifications = await notificationService.getNotifications(authStore.user.uid);
+			const uid = authStore.user.uid;
+			console.log('[profile] Loading notifications for uid:', uid);
+			notifications = await notificationService.getNotifications(uid);
+			console.log('[profile] Loaded notifications:', notifications.length, notifications);
 		} catch (e: any) {
-			console.error('Error loading notifications:', e);
+			console.error('[profile] Error loading notifications:', e);
 		} finally {
 			isNotifLoading = false;
 		}
@@ -125,6 +132,7 @@
 			await notificationService.markAsRead(notification.id);
 			alert('Te has unido al torneo exitosamente!');
 			await loadNotifications();
+			await refreshInvitationCount();
 		} catch (e: any) {
 			alert(`Error al unirse: ${e.message}`);
 		}
@@ -149,6 +157,7 @@
 			await friendshipApi.updateStatus(friendshipId, 'accepted');
 			await loadFriends();
 			await loadPendingRequests();
+			await refreshInvitationCount();
 		} catch (e: any) {
 			alert(`Error al aceptar solicitud: ${e.message}`);
 		}
@@ -158,6 +167,7 @@
 		try {
 			await friendshipApi.updateStatus(friendshipId, 'declined');
 			await loadPendingRequests();
+			await refreshInvitationCount();
 		} catch (e: any) {
 			alert(`Error al rechazar solicitud: ${e.message}`);
 		}

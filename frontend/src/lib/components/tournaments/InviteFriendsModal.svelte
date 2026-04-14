@@ -4,6 +4,7 @@
 	import { notificationService } from '$lib/services/notifications';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { getCachedProfile } from '$lib/stores/users.svelte';
+	import { resolveUserProfiles } from '$lib/services/user';
 	import type { Friendship } from '$lib/types/firebase';
 
 	let { tournament, onClose } = $props<{
@@ -12,6 +13,7 @@
 	}>();
 
 	let friends = $state<Friendship[]>([]);
+	let friendProfiles = $state<Record<string, { displayName: string; photoURL: string | null } | null>>({});
 	let selectedFriendIds = $state<string[]>([]);
 	let isLoading = $state(true);
 	let isSending = $state(false);
@@ -24,8 +26,15 @@
 			loadFailed = false;
 			const result = await friendshipApi.getFriends();
 			friends = result ?? [];
+
+			// Resolve profiles for all friends
+			const uids = friends.map(f => f.user1Id === authStore.user?.uid ? f.user2Id : f.user1Id);
+			console.log('[InviteFriendsModal] friends loaded:', friends.length, 'uids:', uids);
+			const resolved = await resolveUserProfiles(uids);
+			friendProfiles = resolved as Record<string, { displayName: string; photoURL: string | null } | null>;
 		} catch (e: any) {
 			loadFailed = true;
+			console.error('[InviteFriendsModal] Error loading friends:', e);
 			// Show friendly error instead of raw "failed to fetch"
 			if (e.message?.includes('Failed to fetch') || e.message?.includes('NetworkError') || e.message?.includes('fetch')) {
 				errorMessage = 'No se pudo conectar con el servidor. Verifica que el backend esté funcionando.';
@@ -49,6 +58,8 @@
 			const senderId = authStore.user?.uid;
 			if (!senderId) throw new Error('Usuario no autenticado');
 
+			console.log('[InviteFriendsModal] Sending invites to:', selectedFriendIds, 'tournament:', tournament.id);
+
 			const sendPromises = selectedFriendIds.map(friendId => {
 				return notificationService.sendInvite(
 					friendId,
@@ -63,6 +74,7 @@
 			alert(`¡Invitaciones enviadas a ${selectedFriendIds.length} amigos!`);
 			onClose();
 		} catch (e: any) {
+			console.error('[InviteFriendsModal] Error sending invites:', e);
 			errorMessage = 'Error al enviar invitaciones: ' + e.message;
 		} finally {
 			isSending = false;
@@ -99,7 +111,7 @@
 			<div class="space-y-2 max-h-64 overflow-y-auto mb-6">
 				{#each friends as friend}
 					{@const friendUid = getFriendUid(friend)}
-					{@const profile = getCachedProfile(friendUid)}
+					{@const profile = friendProfiles[friendUid]}
 					<label class="flex items-center gap-3 p-3 bg-base-300 rounded-box cursor-pointer hover:bg-base-100 transition-colors border border-transparent {selectedFriendIds.includes(friendUid) ? 'border-primary bg-base-100' : ''}">
 						<input
 							type="checkbox"
