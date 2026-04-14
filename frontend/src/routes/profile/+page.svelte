@@ -248,7 +248,6 @@
 					<div class="form-control">
 						<label class="label" for="profile-name">
 							<span class="label-text font-bold">Nombre</span>
-							<span class="label-text-alt opacity-50">Viene de tu cuenta Google</span>
 						</label>
 						<input
 							id="profile-name"
@@ -433,7 +432,6 @@
 								</div>
 								<div class="flex-1 overflow-hidden">
 									<p class="text-sm font-bold truncate">{friendName}</p>
-									<p class="text-xs opacity-50">Amigo aceptado</p>
 								</div>
 							</div>
 						{/each}
