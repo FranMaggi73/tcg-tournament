@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { subscribeToTournament, subscribeToMatches, findRound, subscribeToPlayers } from '$lib/services/tournament';
-	import { resolveUserProfiles } from '$lib/services/user';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { getTournamentRole } from '$lib/services/roles';
 	import type { Tournament, Match, Player } from '$lib/types/firebase';
@@ -10,11 +9,24 @@
 	let tournament = $state<Tournament | null>(null);
 	let matches = $state<Match[]>([]);
 	let players = $state<Player[]>([]);
-	let profiles = $state<Record<string, any>>({});
 	let role = $state<'judge' | 'viewer'>('viewer');
 	let unsubscribeTournament: () => void;
 	let unsubscribeMatches: () => void;
 	let unsubscribePlayers: () => void;
+
+	// Build a lookup map: playerId -> player name
+	let playerNames = $derived.by(() => {
+		const map: Record<string, string> = {};
+		for (const p of players) {
+			map[p.id] = p.name;
+		}
+		return map;
+	});
+
+	function getPlayerName(playerId: string): string {
+		if (playerId === 'BYE') return 'BYE';
+		return playerNames[playerId] || playerId.substring(0, 8) + '...';
+	}
 
 	onMount(() => {
 		unsubscribeTournament = subscribeToTournament(data.tournamentId, async (updatedT) => {
@@ -28,15 +40,6 @@
 					if (unsubscribeMatches) unsubscribeMatches();
 					unsubscribeMatches = subscribeToMatches(data.tournamentId, round.id, (updatedM) => {
 						matches = updatedM;
-						// Resolve profiles for match players
-						const uids = updatedM.flatMap((m: Match) => {
-							const ids = [m.player1Id];
-							if (m.player2Id !== 'BYE') ids.push(m.player2Id);
-							return ids;
-						});
-						resolveUserProfiles(uids).then(resolved => {
-							profiles = resolved;
-						});
 					});
 				}
 			} else {
@@ -46,10 +49,6 @@
 
 		unsubscribePlayers = subscribeToPlayers(data.tournamentId, (updatedP) => {
 			players = updatedP;
-			const uids = updatedP.map(p => p.id);
-			resolveUserProfiles(uids).then(resolved => {
-				profiles = { ...profiles, ...resolved };
-			});
 		});
 	});
 
@@ -92,13 +91,13 @@
 
 					{#if match.player2Id === 'BYE'}
 						<div class="text-center py-2">
-							<span class="font-bold">{profiles[match.player1Id]?.displayName || match.player1Id}</span>
+							<span class="font-bold">{getPlayerName(match.player1Id)}</span>
 							<span class="badge badge-info ml-2">BYE</span>
 						</div>
 					{:else}
 						<div class="flex flex-col gap-3">
 							<div class="flex items-center justify-between p-3 rounded-lg {match.winnerId === match.player1Id ? 'bg-success/20 ring-1 ring-success' : 'bg-base-300'}">
-								<span class="font-bold">{profiles[match.player1Id]?.displayName || match.player1Id}</span>
+								<span class="font-bold">{getPlayerName(match.player1Id)}</span>
 								{#if match.status === 'completed'}
 									<span class="text-sm opacity-60">{match.player1Score}</span>
 								{/if}
@@ -110,7 +109,7 @@
 							<div class="text-center text-xs font-bold opacity-30">VS</div>
 
 							<div class="flex items-center justify-between p-3 rounded-lg {match.winnerId === match.player2Id ? 'bg-success/20 ring-1 ring-success' : 'bg-base-300'}">
-								<span class="font-bold">{profiles[match.player2Id]?.displayName || match.player2Id}</span>
+								<span class="font-bold">{getPlayerName(match.player2Id)}</span>
 								{#if match.status === 'completed'}
 									<span class="text-sm opacity-60">{match.player2Score}</span>
 								{/if}
@@ -123,12 +122,11 @@
 				</div>
 			</div>
 		{/each}
-
 		{#if matches.length === 0}
 			<div class="col-span-full flex flex-col items-center justify-center py-20 text-center">
 				<div class="text-6xl mb-4">⏳</div>
 				<h2 class="text-2xl font-bold">Esperando Pairings</h2>
-				<p class="text-base-content/60">El juez está preparando los enfrentamientos de esta ronda.</p>
+				<p class="text-base-content/60">El juez esta preparando los enfrentamientos de esta ronda.</p>
 			</div>
 		{/if}
 	</div>

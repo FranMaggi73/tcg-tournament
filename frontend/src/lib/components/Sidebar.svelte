@@ -10,6 +10,7 @@
 
 	// Resolve current user's profile from Firestore cache
 	let currentProfile = $derived(userCache.profiles[authStore.user?.uid ?? ''] ?? null);
+	let displayName = $derived(currentProfile?.displayName || authStore.user?.displayName || 'Jugador');
 
 	// Load profile on mount if not cached
 	onMount(async () => {
@@ -77,13 +78,13 @@
 					</div>
 				{:else}
 					<div class="bg-neutral text-neutral-content rounded-full w-9 h-9 flex items-center justify-center">
-						<span class="text-xs font-bold">{currentProfile?.displayName?.charAt(0).toUpperCase() || authStore.user?.email?.charAt(0).toUpperCase() || 'U'}</span>
+						<span class="text-xs font-bold">{displayName.charAt(0).toUpperCase()}</span>
 					</div>
 				{/if}
 			</div>
 			{#if !collapsed}
 				<div class="flex-1 min-w-0">
-					<p class="text-sm font-medium truncate">{currentProfile?.displayName || authStore.user?.displayName || 'Jugador'}</p>
+					<p class="text-sm font-medium truncate">{displayName}</p>
 					<p class="text-xs opacity-50 truncate">{authStore.user?.email}</p>
 				</div>
 			{/if}

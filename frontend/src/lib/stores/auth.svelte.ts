@@ -1,6 +1,7 @@
 import { auth } from '$lib/services/firebase';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import type { FirebaseUser } from '$lib/types/firebase';
+import { ensureUserProfile } from '$lib/services/user';
 
 // Define the reactive state for authentication
 interface AuthState {
@@ -21,10 +22,10 @@ const authReadyPromise = new Promise<void>((resolve) => {
 
 /**
  * Initializes the auth observer to keep the authStore in sync with Firebase Auth.
- * Called eagerly at module load time so auth state is available for load functions.
+ * Also auto-creates the user's profile in Firestore on first login.
  */
 export function initAuthObserver() {
-	onAuthStateChanged(auth, (firebaseUser: User | null) => {
+	onAuthStateChanged(auth, async (firebaseUser: User | null) => {
 		if (firebaseUser) {
 			authStore.user = {
 				uid: firebaseUser.uid,
@@ -32,6 +33,17 @@ export function initAuthObserver() {
 				displayName: firebaseUser.displayName,
 				photoURL: firebaseUser.photoURL
 			};
+
+			// Auto-create profile in Firestore so other users can see the name
+			try {
+				await ensureUserProfile(
+					firebaseUser.uid,
+					firebaseUser.displayName,
+					firebaseUser.email
+				);
+			} catch (e) {
+				console.error('Error ensuring user profile:', e);
+			}
 		} else {
 			authStore.user = null;
 		}

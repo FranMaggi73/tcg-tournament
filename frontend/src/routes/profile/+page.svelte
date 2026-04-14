@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { authStore, waitForAuth } from '$lib/stores/auth.svelte';
-	import { getUserProfile, updateUserProfile } from '$lib/services/user';
+	import { getUserProfile, updateUserProfile, resolveUserProfiles } from '$lib/services/user';
 	import { friendshipApi, tournamentApi } from '$lib/services/api';
 	import { notificationService } from '$lib/services/notifications';
 	import type { UserProfile, Friendship, Notification } from '$lib/types/firebase';
@@ -18,10 +18,27 @@
 	let pendingRequests = $state<Friendship[]>([]);
 	let friendSearch = $state('');
 	let isAddingFriend = $state(false);
+	let friendProfiles = $state<Record<string, UserProfile | null>>({});
 
 	// Notifications state
 	let notifications = $state<Notification[]>([]);
 	let isNotifLoading = $state(false);
+
+	async function resolveFriendUids() {
+		const uids: string[] = [];
+		for (const f of friends) {
+			if (!friendProfiles[f.user1Id]) uids.push(f.user1Id);
+			if (!friendProfiles[f.user2Id]) uids.push(f.user2Id);
+		}
+		for (const r of pendingRequests) {
+			if (!friendProfiles[r.user1Id]) uids.push(r.user1Id);
+			if (!friendProfiles[r.user2Id]) uids.push(r.user2Id);
+		}
+		if (uids.length > 0) {
+			const resolved = await resolveUserProfiles(uids);
+			friendProfiles = { ...friendProfiles, ...resolved };
+		}
+	}
 
 	onMount(async () => {
 		await waitForAuth();
@@ -58,7 +75,6 @@
 			copiedUid = true;
 			setTimeout(() => { copiedUid = false; }, 2000);
 		} catch {
-			// Fallback for older browsers
 			const textArea = document.createElement('textarea');
 			textArea.value = profile.uid;
 			document.body.appendChild(textArea);
@@ -74,6 +90,7 @@
 		try {
 			const all = await friendshipApi.getFriends();
 			friends = all ?? [];
+			await resolveFriendUids();
 		} catch (e: any) {
 			console.error('Error loading friends:', e);
 		}
@@ -83,6 +100,7 @@
 		try {
 			const result = await friendshipApi.getPendingRequests();
 			pendingRequests = result ?? [];
+			await resolveFriendUids();
 		} catch (e: any) {
 			console.error('Error loading pending requests:', e);
 		}
@@ -102,10 +120,10 @@
 
 	async function handleJoinTournament(notification: Notification) {
 		try {
-			const playerName = profile?.displayName || 'Jugador';
+			const playerName = profile?.displayName || authStore.user?.displayName || 'Jugador';
 			await tournamentApi.joinByCode(notification.inviteCode, authStore.user?.email || '', playerName);
 			await notificationService.markAsRead(notification.id);
-			alert('¡Te has unido al torneo exitosamente!');
+			alert('Te has unido al torneo exitosamente!');
 			await loadNotifications();
 		} catch (e: any) {
 			alert(`Error al unirse: ${e.message}`);
@@ -152,16 +170,23 @@
 		errorMessage = '';
 		try {
 			await updateUserProfile(profile.uid, {
-				displayName: profile.displayName,
 				photoURL: profile.photoURL,
 				bio: profile.bio
 			});
-			alert('Perfil actualizado con éxito');
+			alert('Perfil actualizado con exito');
 		} catch (e: any) {
 			errorMessage = e.message;
 		} finally {
 			isSaving = false;
 		}
+	}
+
+	function getDisplayName(uid: string): string {
+		return friendProfiles[uid]?.displayName || uid.substring(0, 8) + '...';
+	}
+
+	function getPhotoURL(uid: string): string | null {
+		return friendProfiles[uid]?.photoURL || null;
 	}
 </script>
 
@@ -178,8 +203,8 @@
 				{/if}
 			</div>
 		</div>
-		<h1 class="text-3xl font-bold text-primary">Mi Perfil TCG</h1>
-		<p class="text-base-content/60">Personaliza tu identidad en el torneo</p>
+		<h1 class="text-3xl font-bold text-primary">{profile?.displayName || authStore.user?.displayName || 'Mi Perfil'}</h1>
+		<p class="text-base-content/60">{authStore.user?.email}</p>
 	</header>
 
 	{#if isLoading}
@@ -219,16 +244,18 @@
 
 					<div class="divider my-0"></div>
 
+					<!-- Nombre (readonly, viene de Google) -->
 					<div class="form-control">
-						<label class="label" for="profile-nickname">
-							<span class="label-text font-bold">Nickname TCG</span>
+						<label class="label" for="profile-name">
+							<span class="label-text font-bold">Nombre</span>
+							<span class="label-text-alt opacity-50">Viene de tu cuenta Google</span>
 						</label>
 						<input
-							id="profile-nickname"
+							id="profile-name"
 							type="text"
-							bind:value={profile.displayName}
-							placeholder="Ej. ShadowMaster99"
-							class="input input-bordered w-full"
+							value={profile.displayName}
+							readonly
+							class="input input-bordered w-full bg-base-300"
 						/>
 					</div>
 
@@ -247,12 +274,12 @@
 
 					<div class="form-control">
 						<label class="label" for="profile-bio">
-							<span class="label-text font-bold">Biografía</span>
+							<span class="label-text font-bold">Biografia</span>
 						</label>
 						<textarea
 							id="profile-bio"
 							bind:value={profile.bio}
-							placeholder="Cuéntanos sobre tu mazo favorito..."
+							placeholder="Cuentanos sobre tu mazo favorito..."
 							class="textarea textarea-bordered w-full h-24"
 						></textarea>
 					</div>
@@ -320,15 +347,24 @@
 					{:else}
 						<div class="space-y-3">
 							{#each pendingRequests as request}
+								{@const senderUid = request.user1Id}
+								{@const senderName = getDisplayName(senderUid)}
+								{@const senderPhoto = getPhotoURL(senderUid)}
 								<div class="flex items-center justify-between p-4 bg-base-300 rounded-box border border-base-300">
 									<div class="flex items-center gap-3">
 										<div class="avatar placeholder">
-											<div class="bg-neutral text-neutral-content rounded-full w-10">
-												<span class="text-xs">{request.user1Id.charAt(0).toUpperCase()}</span>
+											<div class="bg-neutral text-neutral-content rounded-full w-10 overflow-hidden">
+												{#if senderPhoto}
+													<img src={senderPhoto} alt="avatar" class="w-full h-full object-cover" />
+												{:else}
+													<div class="w-full h-full flex items-center justify-center text-xs font-bold">
+														{senderName.charAt(0).toUpperCase()}
+													</div>
+												{/if}
 											</div>
 										</div>
 										<div>
-											<p class="text-sm font-bold">{request.user1Id}</p>
+											<p class="text-sm font-bold">{senderName}</p>
 											<p class="text-xs opacity-50">Quiere ser tu amigo</p>
 										</div>
 									</div>
@@ -362,7 +398,7 @@
 						<input
 							type="text"
 							bind:value={friendSearch}
-							placeholder="Pega el ID de tu amigo aquí..."
+							placeholder="Pega el ID de tu amigo aqui..."
 							class="input input-bordered flex-1 font-mono text-sm"
 						/>
 						<button
@@ -373,7 +409,7 @@
 							{#if isAddingFriend}
 								<span class="loading loading-spinner"></span>
 							{:else}
-								Añadir
+								Anadir
 							{/if}
 						</button>
 					</div>
@@ -381,29 +417,32 @@
 					<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 						{#each friends as friend}
 							{@const friendUid = friend.user1Id === authStore.user?.uid ? friend.user2Id : friend.user1Id}
+							{@const friendName = getDisplayName(friendUid)}
+							{@const friendPhoto = getPhotoURL(friendUid)}
 							<div class="flex items-center gap-3 p-3 bg-base-300 rounded-box border border-base-300">
 								<div class="avatar placeholder">
-									<div class="bg-neutral text-neutral-content rounded-full w-10">
-										<span class="text-xs">{friendUid.charAt(0).toUpperCase()}</span>
+									<div class="bg-neutral text-neutral-content rounded-full w-10 overflow-hidden">
+										{#if friendPhoto}
+											<img src={friendPhoto} alt="avatar" class="w-full h-full object-cover" />
+										{:else}
+											<div class="w-full h-full flex items-center justify-center text-xs font-bold">
+												{friendName.charAt(0).toUpperCase()}
+											</div>
+										{/if}
 									</div>
 								</div>
 								<div class="flex-1 overflow-hidden">
-									<p class="text-sm font-bold truncate">{friendUid}</p>
+									<p class="text-sm font-bold truncate">{friendName}</p>
 									<p class="text-xs opacity-50">Amigo aceptado</p>
 								</div>
 							</div>
 						{/each}
 						{#if friends.length === 0}
-							<p class="text-center col-span-2 py-8 opacity-50 italic">Aún no tienes amigos agregados.</p>
+							<p class="text-center col-span-2 py-8 opacity-50 italic">Aun no tienes amigos agregados.</p>
 						{/if}
 					</div>
 				</div>
 			</div>
-		</div>
-	{/if}
-	{#if profile}
-		<div class="flex justify-center py-4 opacity-50 text-xs">
-			Actualizado el {(profile.updatedAt as any)?.toDate ? (profile.updatedAt as any).toDate().toLocaleString() : profile.updatedAt?.toLocaleString() || 'Recientemente'}
 		</div>
 	{/if}
 </div>

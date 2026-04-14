@@ -2,17 +2,16 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import LoginForm from '$lib/components/auth/LoginForm.svelte';
 	import { tournamentApi } from '$lib/services/api';
+	import { getUserProfile } from '$lib/services/user';
 
-	// Join Tournament state
 	let inviteCode = $state('');
-	let playerName = $state('');
 	let isJoining = $state(false);
 	let joinError = $state('');
 	let joinSuccess = $state(false);
 
 	async function handleJoin() {
-		if (!inviteCode || !playerName) {
-			joinError = 'Todos los campos son obligatorios';
+		if (!inviteCode) {
+			joinError = 'Ingresa el codigo de invitacion';
 			return;
 		}
 
@@ -21,12 +20,21 @@
 		joinSuccess = false;
 
 		try {
-			console.log('[Join] Sending request:', { code: inviteCode, email: authStore.user?.email, name: playerName });
-			const result = await tournamentApi.joinByCode(inviteCode, authStore.user?.email || '', playerName);
-			console.log('[Join] Success:', result);
+			// Get display name from user profile (Google name)
+			let playerName = authStore.user?.displayName || '';
+			if (authStore.user?.uid) {
+				const profile = await getUserProfile(authStore.user.uid);
+				if (profile?.displayName) {
+					playerName = profile.displayName;
+				}
+			}
+			if (!playerName) {
+				playerName = authStore.user?.email?.split('@')[0] || 'Jugador';
+			}
+
+			await tournamentApi.joinByCode(inviteCode, authStore.user?.email || '', playerName);
 			joinSuccess = true;
 		} catch (e: any) {
-			console.error('[Join] Error:', e);
 			joinError = e.message;
 		} finally {
 			isJoining = false;
@@ -38,7 +46,7 @@
 	{#if authStore.isLoading}
 		<div class="flex flex-col items-center gap-4">
 			<span class="loading loading-ring loading-lg text-primary"></span>
-			<p class="text-base-content/60">Cargando sesión...</p>
+			<p class="text-base-content/60">Cargando sesion...</p>
 		</div>
 	{:else if !authStore.user}
 		<div class="flex flex-col items-center gap-6 w-full">
@@ -73,17 +81,10 @@
 									class="input input-bordered w-full"
 								/>
 							</div>
-							<div class="form-control">
-								<label class="label" for="player-name">
-									<span class="label-text">Nombre de Jugador</span>
-								</label>
-								<input
-									id="player-name"
-									type="text"
-									bind:value={playerName}
-									placeholder="Tu nickname"
-									class="input input-bordered w-full"
-								/>
+
+							<div class="bg-base-300 p-3 rounded-lg text-sm">
+								<span class="opacity-60">Te uniras como: </span>
+								<span class="font-bold text-primary">{authStore.user?.displayName || authStore.user?.email?.split('@')[0] || 'Jugador'}</span>
 							</div>
 
 							{#if joinError}

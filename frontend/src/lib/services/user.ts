@@ -1,11 +1,43 @@
 import { db } from '$lib/services/firebase';
 import { auth } from '$lib/services/firebase';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
 import type { UserProfile } from '$lib/types/firebase';
 import { setCachedProfile, getCachedProfile, userCache } from '$lib/stores/users.svelte';
 
 const USERS_COLLECTION = 'users';
+
+/**
+ * Ensures a user profile exists in Firestore.
+ * Called on login to auto-create the profile with Google account data.
+ * Uses merge so it won't overwrite existing data.
+ * Does NOT save photoURL from Google — avatar is empty by default.
+ */
+export async function ensureUserProfile(uid: string, displayName: string | null, email: string | null) {
+	const docRef = doc(db, USERS_COLLECTION, uid);
+	const docSnap = await getDoc(docRef);
+
+	if (!docSnap.exists()) {
+		const profile: UserProfile = {
+			uid,
+			displayName: displayName || email?.split('@')[0] || 'Jugador',
+			photoURL: null,
+			updatedAt: new Date()
+		};
+		await setDoc(docRef, profile);
+		setCachedProfile(uid, profile);
+		return profile;
+	}
+
+	// If profile exists but displayName is missing, update it
+	const existing = docSnap.data() as UserProfile;
+	if (!existing.displayName && displayName) {
+		await setDoc(docRef, { displayName }, { merge: true });
+		existing.displayName = displayName;
+	}
+	setCachedProfile(uid, existing);
+	return existing;
+}
 
 /**
  * Resolves a list of UIDs to UserProfiles, using a cache to avoid N+1 queries.
@@ -42,14 +74,14 @@ export async function resolveUserProfiles(uids: string[]): Promise<Record<string
 				if (authUser && authUser.uid === uid) {
 					profile = {
 						uid: authUser.uid,
-						displayName: authUser.displayName || 'Usuario Anónimo',
-						photoURL: authUser.photoURL,
+						displayName: authUser.displayName || authUser.email?.split('@')[0] || 'Jugador',
+						photoURL: null,
 						updatedAt: new Date()
 					};
 				} else {
 					profile = {
 						uid,
-						displayName: `Jugador ${uid.substring(0, 5)}`,
+						displayName: 'Jugador',
 						photoURL: null,
 						updatedAt: new Date()
 					};
@@ -86,11 +118,10 @@ export async function updateUserProfile(uid: string, updates: Partial<UserProfil
 		updatedAt: new Date()
 	}, { merge: true });
 
-	// 2. Update Firebase Auth Profile
-	if (updates.displayName || updates.photoURL) {
+	// 2. Update Firebase Auth Profile (only photoURL since displayName is readonly)
+	if (updates.photoURL) {
 		await updateProfile(user, {
-			displayName: updates.displayName || user.displayName,
-			photoURL: updates.photoURL || user.photoURL
+			photoURL: updates.photoURL
 		});
 	}
 

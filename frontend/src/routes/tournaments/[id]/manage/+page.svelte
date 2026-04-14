@@ -295,6 +295,7 @@
 								roundDocId={currentRoundDocId}
 								matches={matches}
 								format={tournament.format}
+								players={players}
 							/>
 						{:else}
 							<div class="text-center py-10 text-base-content/50">

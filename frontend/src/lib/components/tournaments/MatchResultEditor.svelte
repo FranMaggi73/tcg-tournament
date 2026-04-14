@@ -1,34 +1,38 @@
 <script lang="ts">
 	import { tournamentApi } from '$lib/services/api';
-	import { resolveUserProfiles } from '$lib/services/user';
-	import type { Match } from '$lib/types/firebase';
+	import type { Match, Player } from '$lib/types/firebase';
 
-	let { tournamentId, roundDocId, matches, format } = $props<{
+	let { tournamentId, roundDocId, matches, format, players } = $props<{
 		tournamentId: string;
 		roundDocId: string;
 		matches: Match[];
 		format: 'BO1' | 'BO3';
+		players: Player[];
 	}>();
 
 	let scores = $state<Record<string, { s1: number, s2: number }>>({});
 	let loadingMatches = $state<Record<string, boolean>>({});
-	let profiles = $state<Record<string, any>>({});
 
-	// Initialize scores and resolve names
+	// Build player name lookup
+	let playerNames = $derived.by(() => {
+		const map: Record<string, string> = {};
+		for (const p of players) {
+			map[p.id] = p.name;
+		}
+		return map;
+	});
+
+	function getPlayerName(playerId: string): string {
+		if (playerId === 'BYE') return 'BYE';
+		return playerNames[playerId] || playerId.substring(0, 8) + '...';
+	}
+
+	// Initialize scores
 	$effect(() => {
 		matches.forEach((m: Match) => {
 			if (!scores[m.id]) {
 				scores[m.id] = { s1: m.player1Score || 0, s2: m.player2Score || 0 };
 			}
-		});
-
-		const uids = matches.flatMap((m: Match) => {
-			const ids = [m.player1Id];
-			if (m.player2Id !== 'BYE') ids.push(m.player2Id);
-			return ids;
-		});
-		resolveUserProfiles(uids).then(resolved => {
-			profiles = resolved;
 		});
 	});
 
@@ -71,23 +75,22 @@
 				<div class="flex justify-between items-center">
 					<span class="text-xs font-mono text-base-content/50">Match {match.id.substring(0, 5)}</span>
 					{#if match.status === 'completed'}
-						<div class="badge badge-success text-xs">Completed</div>
+						<div class="badge badge-success text-xs">Completada</div>
 					{:else}
-						<div class="badge badge-ghost text-xs">Pending</div>
+						<div class="badge badge-ghost text-xs">Pendiente</div>
 					{/if}
 				</div>
 
 				{#if match.player2Id === 'BYE'}
-					<!-- Bye match -->
 					<div class="text-center py-2">
-						<span class="font-bold text-lg">{profiles[match.player1Id]?.displayName || match.player1Id}</span>
+						<span class="font-bold text-lg">{getPlayerName(match.player1Id)}</span>
 						<span class="badge badge-info ml-2">BYE</span>
 					</div>
 				{:else}
 					<div class="flex items-center justify-between gap-4">
 						<!-- Player 1 -->
 						<div class="flex flex-col gap-1 flex-1">
-							<span class="font-bold text-lg">{profiles[match.player1Id]?.displayName || match.player1Id}</span>
+							<span class="font-bold text-lg">{getPlayerName(match.player1Id)}</span>
 							<div class="flex items-center gap-2">
 								<select
 									class="select select-bordered h-8 w-16 text-center text-sm"
@@ -111,7 +114,7 @@
 
 						<!-- Player 2 -->
 						<div class="flex flex-col gap-1 flex-1 items-end">
-							<span class="font-bold text-lg">{profiles[match.player2Id]?.displayName || match.player2Id}</span>
+							<span class="font-bold text-lg">{getPlayerName(match.player2Id)}</span>
 							<div class="flex items-center gap-2 justify-end">
 								<select
 									class="select select-bordered h-8 w-16 text-center text-sm"
@@ -135,7 +138,7 @@
 					<div class="flex justify-center mt-2">
 						<button
 							class="btn btn-primary btn-xs"
-							disabled={match.status === 'completed' || loadingMatches[match.id] || !isValidScore(format, scores[match.id].s1, scores[match.id].s2)}
+							disabled={match.status === 'completed' || loadingMatches[match.id] || !isValidScore(format, scores[match.id]?.s1, scores[match.id]?.s2)}
 							onclick={() => handleSetResult(match)}
 						>
 							{#if loadingMatches[match.id]}
@@ -150,7 +153,7 @@
 
 		{#if matches.length === 0}
 			<div class="text-center py-10 text-base-content/50">
-				No pairings available for this round.
+				No hay pairings para esta ronda.
 			</div>
 		{/if}
 	</div>
