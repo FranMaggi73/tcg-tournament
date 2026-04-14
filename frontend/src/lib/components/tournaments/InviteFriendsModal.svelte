@@ -12,7 +12,7 @@
 	}>();
 
 	let friends = $state<Friendship[]>([]);
-	let selectedFriends = $state<Set<string>>(new Set());
+	let selectedFriendIds = $state<string[]>([]);
 	let isLoading = $state(true);
 	let isSending = $state(false);
 	let errorMessage = $state('');
@@ -40,7 +40,7 @@
 	onMount(loadFriends);
 
 	async function handleSend() {
-		if (selectedFriends.size === 0) return;
+		if (selectedFriendIds.length === 0) return;
 
 		isSending = true;
 		errorMessage = '';
@@ -49,7 +49,7 @@
 			const senderId = authStore.user?.uid;
 			if (!senderId) throw new Error('Usuario no autenticado');
 
-			const sendPromises = Array.from(selectedFriends).map(friendId => {
+			const sendPromises = selectedFriendIds.map(friendId => {
 				return notificationService.sendInvite(
 					friendId,
 					senderId,
@@ -60,7 +60,7 @@
 			});
 
 			await Promise.all(sendPromises);
-			alert(`¡Invitaciones enviadas a ${selectedFriends.size} amigos!`);
+			alert(`¡Invitaciones enviadas a ${selectedFriendIds.length} amigos!`);
 			onClose();
 		} catch (e: any) {
 			errorMessage = 'Error al enviar invitaciones: ' + e.message;
@@ -70,10 +70,10 @@
 	}
 
 	function toggleFriend(uid: string) {
-		if (selectedFriends.has(uid)) {
-			selectedFriends.delete(uid);
+		if (selectedFriendIds.includes(uid)) {
+			selectedFriendIds = selectedFriendIds.filter(id => id !== uid);
 		} else {
-			selectedFriends.add(uid);
+			selectedFriendIds = [...selectedFriendIds, uid];
 		}
 	}
 
@@ -100,11 +100,11 @@
 				{#each friends as friend}
 					{@const friendUid = getFriendUid(friend)}
 					{@const profile = getCachedProfile(friendUid)}
-					<label class="flex items-center gap-3 p-3 bg-base-300 rounded-box cursor-pointer hover:bg-base-100 transition-colors border border-transparent {selectedFriends.has(friendUid) ? 'border-primary bg-base-100' : ''}">
+					<label class="flex items-center gap-3 p-3 bg-base-300 rounded-box cursor-pointer hover:bg-base-100 transition-colors border border-transparent {selectedFriendIds.includes(friendUid) ? 'border-primary bg-base-100' : ''}">
 						<input
 							type="checkbox"
 							class="checkbox checkbox-primary checkbox-sm"
-							checked={selectedFriends.has(friendUid)}
+							checked={selectedFriendIds.includes(friendUid)}
 							onchange={() => toggleFriend(friendUid)}
 						/>
 						<div class="flex items-center gap-3">
@@ -137,7 +137,7 @@
 			<button
 				class="btn btn-primary"
 				onclick={handleSend}
-				disabled={isSending || selectedFriends.size === 0}
+				disabled={isSending || selectedFriendIds.length === 0}
 			>
 				{#if isSending}
 					<span class="loading loading-spinner"></span>

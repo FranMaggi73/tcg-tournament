@@ -73,12 +73,31 @@ export const tournamentApi = {
 	},
 
 	/**
-	 * Drop a participant from a tournament
+	 * Drop a participant from a tournament (mark as dropped)
 	 */
 	async dropParticipant(tournamentId: string, playerId: string) {
 		return apiRequest<any>(`/tournaments/${tournamentId}/players/${playerId}/status`, {
 			method: 'PATCH',
 			body: JSON.stringify({ status: 'dropped' })
+		});
+	},
+
+	/**
+	 * Restore a dropped participant back to active
+	 */
+	async restoreParticipant(tournamentId: string, playerId: string) {
+		return apiRequest<any>(`/tournaments/${tournamentId}/players/${playerId}/status`, {
+			method: 'PATCH',
+			body: JSON.stringify({ status: 'active' })
+		});
+	},
+
+	/**
+	 * Remove a participant completely from a tournament (only during registration)
+	 */
+	async removeParticipant(tournamentId: string, playerId: string) {
+		return apiRequest<any>(`/tournaments/${tournamentId}/players/${playerId}`, {
+			method: 'DELETE'
 		});
 	},
 

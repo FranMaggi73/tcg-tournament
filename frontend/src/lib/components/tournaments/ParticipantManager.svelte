@@ -8,10 +8,27 @@
 	}>();
 
 	let isDropping = $state<Record<string, boolean>>({});
+	let isRestoring = $state<Record<string, boolean>>({});
+
+	async function handleRemovePlayer(playerId: string) {
+		const playerName = players.find((p: Player) => p.id === playerId)?.name || playerId;
+		if (!confirm(`¿Estás seguro de que quieres eliminar a ${playerName} del torneo? Se borrará por completo.`)) {
+			return;
+		}
+
+		isDropping[playerId] = true;
+		try {
+			await tournamentApi.removeParticipant(tournament.id, playerId);
+		} catch (e: any) {
+			alert(`Error: ${e.message}`);
+		} finally {
+			isDropping[playerId] = false;
+		}
+	}
 
 	async function handleDropPlayer(playerId: string) {
 		const playerName = players.find((p: Player) => p.id === playerId)?.name || playerId;
-		if (!confirm(`Estas seguro de que quieres eliminar a ${playerName} del torneo?`)) {
+		if (!confirm(`¿Estás seguro de que quieres dropear a ${playerName} del torneo?`)) {
 			return;
 		}
 
@@ -25,13 +42,24 @@
 		}
 	}
 
+	async function handleRestorePlayer(playerId: string) {
+		isRestoring[playerId] = true;
+		try {
+			await tournamentApi.restoreParticipant(tournament.id, playerId);
+		} catch (e: any) {
+			alert(`Error: ${e.message}`);
+		} finally {
+			isRestoring[playerId] = false;
+		}
+	}
+
 	let activePlayers = $derived(players.filter((p: Player) => p.status === 'active'));
 	let droppedPlayers = $derived(players.filter((p: Player) => p.status === 'dropped'));
 </script>
 
 <div class="space-y-4">
 	<div class="flex justify-between items-center">
-		<h3 class="text-lg font-bold">Participantes ({activePlayers.length} activos{droppedPlayers.length > 0 ? `, ${droppedPlayers.length} eliminados` : ''})</h3>
+		<h3 class="text-lg font-bold">Participantes ({activePlayers.length} activos{droppedPlayers.length > 0 ? `, ${droppedPlayers.length} dropeados` : ''})</h3>
 	</div>
 
 	<div class="grid grid-cols-1 gap-3">
@@ -50,18 +78,43 @@
 				</div>
 				<div class="flex items-center gap-2">
 					{#if p.status === 'active'}
-						<button
-							class="btn btn-sm btn-error text-white"
-							disabled={!!isDropping[p.id]}
-							onclick={() => handleDropPlayer(p.id)}
-						>
-							{#if isDropping[p.id]}
-								<span class="loading loading-spinner loading-xs"></span>
-							{/if}
-							Eliminar
-						</button>
-					{:else}
-						<div class="badge badge-ghost">Eliminado</div>
+						{#if tournament.status === 'registration'}
+							<button
+								class="btn btn-sm btn-error text-white"
+								disabled={!!isDropping[p.id]}
+								onclick={() => handleRemovePlayer(p.id)}
+							>
+								{#if isDropping[p.id]}
+									<span class="loading loading-spinner loading-xs"></span>
+								{/if}
+								Eliminar
+							</button>
+						{:else if tournament.status === 'playing'}
+							<button
+								class="btn btn-sm btn-warning text-white"
+								disabled={!!isDropping[p.id]}
+								onclick={() => handleDropPlayer(p.id)}
+							>
+								{#if isDropping[p.id]}
+									<span class="loading loading-spinner loading-xs"></span>
+								{/if}
+								Drop
+							</button>
+						{/if}
+					{:else if p.status === 'dropped'}
+						<div class="flex items-center gap-2">
+							<span class="badge badge-ghost">Dropeado</span>
+							<button
+								class="btn btn-sm btn-outline btn-success"
+								disabled={!!isRestoring[p.id]}
+								onclick={() => handleRestorePlayer(p.id)}
+							>
+								{#if isRestoring[p.id]}
+									<span class="loading loading-spinner loading-xs"></span>
+								{/if}
+								Restaurar
+							</button>
+						</div>
 					{/if}
 				</div>
 			</div>

@@ -339,6 +339,46 @@ func (h *TournamentHandler) UpdateMatchResult(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Match result updated and standings recalculated"})
 }
 
+// RemovePlayer completely deletes a player from a tournament. Only allowed during registration. (Judge Only)
+func (h *TournamentHandler) RemovePlayer(c *gin.Context) {
+	tournamentID := c.Param("id")
+	playerID := c.Param("playerId")
+	uid, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	uidStr, ok := uid.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal authentication error"})
+		return
+	}
+
+	t, err := h.repo.GetTournament(c.Request.Context(), tournamentID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Tournament not found"})
+		return
+	}
+
+	if t.CreatedBy != uidStr {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Only the tournament judge can remove players"})
+		return
+	}
+
+	if t.Status != "registration" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Players can only be removed during registration. Use drop instead."})
+		return
+	}
+
+	if err := h.repo.DeletePlayer(c.Request.Context(), tournamentID, playerID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Player removed from tournament"})
+}
+
 // UpdatePlayerStatus allows the judge to drop a player. (Judge Only)
 func (h *TournamentHandler) UpdatePlayerStatus(c *gin.Context) {
 	tournamentID := c.Param("id")

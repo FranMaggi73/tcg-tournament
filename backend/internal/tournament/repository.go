@@ -131,6 +131,12 @@ func (r *Repository) UpdatePlayerStatus(ctx context.Context, tournamentID string
 	return err
 }
 
+func (r *Repository) DeletePlayer(ctx context.Context, tournamentID string, playerID string) error {
+	_, err := r.client.Collection("tournaments").Doc(tournamentID).
+		Collection("players").Doc(playerID).Delete(ctx)
+	return err
+}
+
 // --- Friendship Methods ---
 
 func (r *Repository) CreateFriendship(ctx context.Context, f *models.Friendship) error {

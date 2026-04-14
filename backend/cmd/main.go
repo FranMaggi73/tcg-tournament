@@ -74,6 +74,7 @@ func main() {
 		authGroup.POST("/tournaments/:id/rounds/next", h.NextRound)
 		authGroup.PATCH("/tournaments/:id/matches/:matchId", h.UpdateMatchResult)
 		authGroup.PATCH("/tournaments/:id/players/:playerId/status", h.UpdatePlayerStatus)
+		authGroup.DELETE("/tournaments/:id/players/:playerId", h.RemovePlayer)
 		authGroup.POST("/tournaments/:id/rollback", h.RollbackRound)
 
 		// Friendship Routes
