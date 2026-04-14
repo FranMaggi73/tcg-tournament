@@ -69,6 +69,7 @@ export interface Friendship {
 
 export interface Notification {
 	id: string;
+	type: 'tournament_invite';
 	recipientId: string;
 	senderId: string;
 	tournamentId: string;
@@ -77,4 +78,5 @@ export interface Notification {
 	message: string;
 	read: boolean;
 	createdAt: Date;
+	expiresAt: Date; // Auto-expires after 7 days
 }

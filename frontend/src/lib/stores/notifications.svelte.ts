@@ -31,8 +31,6 @@ export async function refreshInvitationCount() {
 			friendshipApi.getPendingRequests().catch(() => [])
 		]);
 
-		console.log('[notifications store] notifications:', notifications.length, '| pending requests:', pendingRequests.length);
-
 		const unreadTournamentInvites = notifications.filter(n => !n.read).length;
 		const unreadFriendRequests = pendingRequests.length;
 

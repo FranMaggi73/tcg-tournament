@@ -115,9 +115,7 @@
 		isNotifLoading = true;
 		try {
 			const uid = authStore.user.uid;
-			console.log('[profile] Loading notifications for uid:', uid);
 			notifications = await notificationService.getNotifications(uid);
-			console.log('[profile] Loaded notifications:', notifications.length, notifications);
 		} catch (e: any) {
 			console.error('[profile] Error loading notifications:', e);
 		} finally {
@@ -129,12 +127,22 @@
 		try {
 			const playerName = profile?.displayName || authStore.user?.displayName || 'Jugador';
 			await tournamentApi.joinByCode(notification.inviteCode, authStore.user?.email || '', playerName);
-			await notificationService.markAsRead(notification.id);
-			alert('Te has unido al torneo exitosamente!');
+			await notificationService.markAsReadAndDelete(notification.id);
+			alert('¡Te has unido al torneo exitosamente!');
 			await loadNotifications();
 			await refreshInvitationCount();
 		} catch (e: any) {
 			alert(`Error al unirse: ${e.message}`);
+		}
+	}
+
+	async function handleRejectInvite(notificationId: string) {
+		try {
+			await notificationService.markAsReadAndDelete(notificationId);
+			await loadNotifications();
+			await refreshInvitationCount();
+		} catch (e: any) {
+			alert(`Error al rechazar invitación: ${e.message}`);
 		}
 	}
 
@@ -329,18 +337,43 @@
 					{:else}
 						<div class="space-y-4">
 							{#each notifications as notif}
-								<div class="flex items-center justify-between p-4 bg-base-300 rounded-box border border-base-300 {notif.read ? 'opacity-50' : 'ring-1 ring-primary' }">
-									<div class="flex flex-col">
-										<p class="font-bold text-sm">{notif.message}</p>
+								{@const isExpired = notif.expiresAt && new Date(notif.expiresAt) <= new Date()}
+								{@const expiresLabel = notif.expiresAt
+									? (() => {
+										const diff = new Date(notif.expiresAt).getTime() - Date.now();
+										if (diff <= 0) return 'Expirada';
+										const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+										if (days > 0) return `Expira en ${days}d`;
+										const hours = Math.floor(diff / (1000 * 60 * 60));
+										if (hours > 0) return `Expira en ${hours}h`;
+										const mins = Math.floor(diff / (1000 * 60));
+										return `Expira en ${mins}m`;
+									})()
+									: ''}
+								<div class="flex items-center justify-between p-4 bg-base-300 rounded-box border border-base-300 {notif.read || isExpired ? 'opacity-50' : 'ring-1 ring-primary' }">
+									<div class="flex flex-col flex-1 min-w-0">
+										<p class="font-bold text-sm truncate">{notif.message}</p>
 										<p class="text-xs opacity-60">{notif.tournamentName}</p>
+										<p class="text-xs opacity-40 mt-1">{expiresLabel}</p>
 									</div>
-									<button
-										class="btn btn-primary btn-xs"
-										onclick={() => handleJoinTournament(notif)}
-										disabled={notif.read}
-									>
-										Unirse
-									</button>
+									{#if !isExpired}
+										<div class="flex gap-2 ml-4 shrink-0">
+											<button
+												class="btn btn-error btn-outline btn-xs"
+												onclick={() => handleRejectInvite(notif.id)}
+											>
+												Rechazar
+											</button>
+											<button
+												class="btn btn-primary btn-xs"
+												onclick={() => handleJoinTournament(notif)}
+											>
+												Unirse
+											</button>
+										</div>
+									{:else}
+										<span class="badge badge-ghost badge-xs ml-4">Expirada</span>
+									{/if}
 								</div>
 							{/each}
 						</div>
