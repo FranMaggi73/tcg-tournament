@@ -1,6 +1,7 @@
 import { db } from '$lib/services/firebase';
 import {
 	collection,
+	collectionGroup,
 	doc,
 	updateDoc,
 	getDoc,
@@ -24,6 +25,40 @@ export async function getTournamentsByJudge(userId: string): Promise<Tournament[
 		id: doc.id,
 		...doc.data()
 	} as Tournament));
+}
+
+/**
+ * Fetches all tournaments where the user is a registered player.
+ * Uses a collection group query on 'players' matching by email,
+ * then fetches the parent tournament for each.
+ */
+export async function getTournamentsByPlayer(email: string, userId: string): Promise<Tournament[]> {
+	const playersGroup = collectionGroup(db, 'players');
+	const q = query(playersGroup, where('email', '==', email));
+	const playerSnapshot = await getDocs(q);
+
+	const tournamentIds: string[] = [];
+	for (const playerDoc of playerSnapshot.docs) {
+		// Extract tournament ID from the path: tournaments/{tournamentId}/players/{playerId}
+		const pathSegments = playerDoc.ref.path.split('/');
+		const tournamentId = pathSegments[1];
+		if (!tournamentIds.includes(tournamentId)) {
+			tournamentIds.push(tournamentId);
+		}
+	}
+
+	// Fetch each tournament document in parallel, excluding own tournaments
+	const tournaments = await Promise.all(
+		tournamentIds.map(async (tid) => {
+			const tDoc = await getDoc(doc(db, TOURNAMENTS_COLLECTION, tid));
+			if (tDoc.exists() && tDoc.data().createdBy !== userId) {
+				return { id: tDoc.id, ...tDoc.data() } as Tournament;
+			}
+			return null;
+		})
+	);
+
+	return tournaments.filter((t): t is Tournament => t !== null);
 }
 
 /**
@@ -81,8 +116,8 @@ export async function findRound(tournamentId: string, roundNumber: number): Prom
 	const q = query(roundsCol, where('roundNumber', '==', roundNumber));
 	const snapshot = await getDocs(q);
 	if (snapshot.empty) return null;
-	const doc = snapshot.docs[0];
-	return { id: doc.id, ...doc.data() } as Round;
+	const d = snapshot.docs[0];
+	return { id: d.id, ...d.data() } as Round;
 }
 
 /**

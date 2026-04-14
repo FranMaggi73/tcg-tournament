@@ -64,15 +64,22 @@ func (r *Repository) DeleteTournament(ctx context.Context, id string) error {
 
 func (r *Repository) PlayerExists(ctx context.Context, tournamentID string, email string) (bool, error) {
 	iter := r.client.Collection("tournaments").Doc(tournamentID).
-		Collection("players").Where("email", "==", email).Documents(ctx)
-	doc, err := iter.Next()
-	if err == iterator.Done {
-		return false, nil
+		Collection("players").Documents(ctx)
+	defer iter.Stop()
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		var p models.Player
+		doc.DataTo(&p)
+		if p.Email == email {
+			return true, nil
+		}
 	}
-	if err != nil {
-		return false, err
-	}
-	return doc != nil, nil
 }
 
 func (r *Repository) CreatePlayer(ctx context.Context, tournamentID string, p *models.Player) error {

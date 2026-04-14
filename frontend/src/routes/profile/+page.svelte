@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { authStore } from '$lib/stores/auth.svelte';
+	import { authStore, waitForAuth } from '$lib/stores/auth.svelte';
 	import { getUserProfile, updateUserProfile } from '$lib/services/user';
 	import { friendshipApi, tournamentApi } from '$lib/services/api';
 	import { notificationService } from '$lib/services/notifications';
@@ -11,6 +11,7 @@
 	let isLoading = $state(true);
 	let isSaving = $state(false);
 	let errorMessage = $state('');
+	let copiedUid = $state(false);
 
 	// Friends state
 	let friends = $state<Friendship[]>([]);
@@ -23,7 +24,10 @@
 	let isNotifLoading = $state(false);
 
 	onMount(async () => {
+		await waitForAuth();
+
 		if (!authStore.user) {
+			isLoading = false;
 			return;
 		}
 
@@ -46,6 +50,25 @@
 			isLoading = false;
 		}
 	});
+
+	async function handleCopyUid() {
+		if (!profile?.uid) return;
+		try {
+			await navigator.clipboard.writeText(profile.uid);
+			copiedUid = true;
+			setTimeout(() => { copiedUid = false; }, 2000);
+		} catch {
+			// Fallback for older browsers
+			const textArea = document.createElement('textarea');
+			textArea.value = profile.uid;
+			document.body.appendChild(textArea);
+			textArea.select();
+			document.execCommand('copy');
+			document.body.removeChild(textArea);
+			copiedUid = true;
+			setTimeout(() => { copiedUid = false; }, 2000);
+		}
+	}
 
 	async function loadFriends() {
 		try {
@@ -168,6 +191,34 @@
 			<!-- Profile Settings -->
 			<div class="lg:col-span-1 card bg-base-200 shadow-xl border border-base-300 p-8">
 				<div class="space-y-6">
+					<!-- Mi UID - Compartible -->
+					<div class="form-control">
+						<label class="label" for="profile-uid">
+							<span class="label-text font-bold">Mi ID</span>
+						</label>
+						<div class="flex gap-2">
+							<input
+								id="profile-uid"
+								type="text"
+								value={profile.uid}
+								readonly
+								class="input input-bordered w-full text-xs font-mono bg-base-300"
+							/>
+							<button
+								class="btn btn-outline btn-sm {copiedUid ? 'btn-success' : ''}"
+								onclick={handleCopyUid}
+							>
+								{#if copiedUid}
+									Copiado
+								{:else}
+									Copiar
+								{/if}
+							</button>
+						</div>
+					</div>
+
+					<div class="divider my-0"></div>
+
 					<div class="form-control">
 						<label class="label" for="profile-nickname">
 							<span class="label-text font-bold">Nickname TCG</span>
@@ -305,12 +356,14 @@
 				<div class="card bg-base-200 shadow-xl border border-base-300 p-8">
 					<h2 class="text-xl font-bold text-primary mb-6">Mis Amigos</h2>
 
+					<p class="text-sm opacity-60 mb-4">Pega el ID de tu amigo para enviarle una solicitud. Tu amigo puede copiar su ID desde su perfil.</p>
+
 					<div class="flex gap-2 mb-6">
 						<input
 							type="text"
 							bind:value={friendSearch}
-							placeholder="ID del amigo..."
-							class="input input-bordered flex-1"
+							placeholder="Pega el ID de tu amigo aquí..."
+							class="input input-bordered flex-1 font-mono text-sm"
 						/>
 						<button
 							class="btn btn-primary"

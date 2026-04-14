@@ -21,10 +21,12 @@
 		joinSuccess = false;
 
 		try {
-			// We no longer send the email manually, backend uses the auth context
-			await tournamentApi.joinByCode(inviteCode, authStore.user?.email || '', playerName);
+			console.log('[Join] Sending request:', { code: inviteCode, email: authStore.user?.email, name: playerName });
+			const result = await tournamentApi.joinByCode(inviteCode, authStore.user?.email || '', playerName);
+			console.log('[Join] Success:', result);
 			joinSuccess = true;
 		} catch (e: any) {
+			console.error('[Join] Error:', e);
 			joinError = e.message;
 		} finally {
 			isJoining = false;
@@ -48,38 +50,20 @@
 			<LoginForm />
 		</div>
 	{:else}
-		<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full max-w-5xl">
-			<!-- User Welcome Card -->
-			<div class="card bg-base-200 shadow-xl border border-base-300">
-				<div class="card-body items-center text-center">
-					<div class="avatar mb-4">
-						<div class="w-24 rounded-full ring ring-primary ring-offset-base-100 ring-offset-2">
-							<img src={authStore.user?.photoURL || 'https://api.dicebear.com/7.x/avataaars/svg?seed=TCG'} alt="User Avatar" />
-						</div>
-					</div>
-					<h2 class="text-2xl font-bold">¡Bienvenido!</h2>
-					<p class="text-base-content/70 mb-4">{authStore.user?.email}</p>
-					<div class="card-actions w-full gap-2">
-						<a href="/tournaments/manage" class="btn btn-primary flex-1">Mis Torneos</a>
-						<button class="btn btn-outline btn-secondary flex-1" onclick={() => import('$lib/services/auth-utils').then(m => m.logout())}>Cerrar Sesión</button>
-					</div>
-				</div>
-			</div>
+		<div class="w-full max-w-lg">
+			<h1 class="text-3xl font-bold text-primary mb-6 text-center">Unirse a un Torneo</h1>
 
-			<!-- Join Tournament Card -->
 			<div class="card bg-base-200 shadow-xl border border-base-300">
 				<div class="card-body">
-					<h2 class="text-xl font-bold text-primary mb-4">Unirse a un Torneo</h2>
-
 					{#if joinSuccess}
 						<div class="alert alert-success py-4">
-							<span>¡Te has unido exitosamente al torneo!</span>
+							<span>Te has unido exitosamente al torneo!</span>
 						</div>
 					{:else}
 						<div class="space-y-4">
 							<div class="form-control">
 								<label class="label" for="invite-code">
-									<span class="label-text">Código de Invitación</span>
+									<span class="label-text">Codigo de Invitacion</span>
 								</label>
 								<input
 									id="invite-code"
