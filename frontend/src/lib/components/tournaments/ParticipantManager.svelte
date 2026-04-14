@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { tournamentApi } from '$lib/services/api';
+	import { authStore } from '$lib/stores/auth.svelte';
 	import type { Tournament, Player } from '$lib/types/firebase';
 
 	let { tournament, players } = $props<{
@@ -9,6 +10,29 @@
 
 	let isDropping = $state<Record<string, boolean>>({});
 	let isRestoring = $state<Record<string, boolean>>({});
+	let isJoining = $state(false);
+
+	const isJudge = $derived(authStore.user?.uid === tournament.createdBy);
+	const judgeAlreadyJoined = $derived(
+		isJudge && players.some((p: Player) => p.email === authStore.user?.email)
+	);
+
+	async function handleJoinTournament() {
+		if (!authStore.user) return;
+		isJoining = true;
+		try {
+			await tournamentApi.joinByCode(
+				tournament.inviteCode,
+				authStore.user.email || '',
+				authStore.user.displayName || 'Jugador'
+			);
+			alert('¡Te has unido al torneo!');
+		} catch (e: any) {
+			alert(`Error: ${e.message}`);
+		} finally {
+			isJoining = false;
+		}
+	}
 
 	async function handleRemovePlayer(playerId: string) {
 		const playerName = players.find((p: Player) => p.id === playerId)?.name || playerId;
@@ -60,6 +84,18 @@
 <div class="space-y-4">
 	<div class="flex justify-between items-center">
 		<h3 class="text-lg font-bold">Participantes ({activePlayers.length} activos{droppedPlayers.length > 0 ? `, ${droppedPlayers.length} dropeados` : ''})</h3>
+		{#if isJudge && tournament.status === 'registration' && !judgeAlreadyJoined}
+			<button
+				class="btn btn-primary btn-sm"
+				disabled={isJoining}
+				onclick={handleJoinTournament}
+			>
+				{#if isJoining}
+					<span class="loading loading-spinner loading-xs"></span>
+				{/if}
+				Unirme al Torneo
+			</button>
+		{/if}
 	</div>
 
 	<div class="grid grid-cols-1 gap-3">

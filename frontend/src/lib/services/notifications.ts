@@ -1,5 +1,5 @@
 import { db } from './firebase';
-import { collection, addDoc, query, where, getDocs, updateDoc, deleteDoc, doc, limit } from 'firebase/firestore';
+import { collection, addDoc, query as firestoreQuery, where, getDocs, updateDoc, deleteDoc, doc, limit } from 'firebase/firestore';
 import type { Notification } from '../types/firebase';
 
 export const notificationService = {
@@ -45,7 +45,7 @@ export const notificationService = {
 	async hasExistingInvite(recipientId: string, tournamentId: string): Promise<boolean> {
 		try {
 			const notificationsRef = collection(db, 'notifications');
-			const q = query(
+			const q = firestoreQuery(
 				notificationsRef,
 				where('recipientId', '==', recipientId),
 				where('tournamentId', '==', tournamentId),
@@ -53,9 +53,18 @@ export const notificationService = {
 			);
 			const snapshot = await getDocs(q);
 			const now = new Date();
-			for (const doc of snapshot.docs) {
-				const data = doc.data();
-				const expiresAt = data.expiresAt instanceof Date ? data.expiresAt : new Date(data.expiresAt?.seconds ? data.expiresAt.toDate() : 0);
+			for (const docSnap of snapshot.docs) {
+				const raw = docSnap.data();
+				const data = raw as Record<string, unknown>;
+				const rawExpiresAt = data.expiresAt;
+				let expiresAt: Date;
+				if (rawExpiresAt instanceof Date) {
+					expiresAt = rawExpiresAt;
+				} else if (rawExpiresAt && typeof rawExpiresAt === 'object' && 'toDate' in rawExpiresAt) {
+					expiresAt = (rawExpiresAt as { toDate: () => Date }).toDate();
+				} else {
+					expiresAt = new Date(0);
+				}
 				if (!data.read && expiresAt > now) {
 					return true;
 				}
@@ -69,12 +78,12 @@ export const notificationService = {
 
 	/**
 	 * Fetches notifications for a specific user, sorted by newest first.
-	 * Expired notifications are automatically filtered out.
+	 * Expired notifications are automatically deleted on read.
 	 */
-	async getNotifications(userId: string, maxItems = 20) {
+	async getNotifications(userId: string, maxItems = 20): Promise<Notification[]> {
 		try {
 			const notificationsRef = collection(db, 'notifications');
-			const q = query(
+			const q = firestoreQuery(
 				notificationsRef,
 				where('recipientId', '==', userId),
 				limit(maxItems)
@@ -83,30 +92,46 @@ export const notificationService = {
 			const querySnapshot = await getDocs(q);
 			const now = new Date();
 			const results: Notification[] = [];
+			const toDelete: string[] = [];
 
 			for (const docSnap of querySnapshot.docs) {
-				const data = docSnap.data();
-				const expiresAt = data.expiresAt instanceof Date
-					? data.expiresAt
-					: data.expiresAt?.seconds
-						? data.expiresAt.toDate()
-						: new Date(0);
+				const raw = docSnap.data();
+				const data = raw as Record<string, unknown>;
+				const rawExpiresAt = data.expiresAt;
+				let expiresAt: Date;
+				if (rawExpiresAt instanceof Date) {
+					expiresAt = rawExpiresAt;
+				} else if (rawExpiresAt && typeof rawExpiresAt === 'object' && 'toDate' in rawExpiresAt) {
+					expiresAt = (rawExpiresAt as { toDate: () => Date }).toDate();
+				} else {
+					expiresAt = new Date(0);
+				}
 
-				// Skip expired notifications
-				if (expiresAt <= now) continue;
+				// Delete expired notifications
+				if (expiresAt <= now) {
+					toDelete.push(docSnap.id);
+					continue;
+				}
 
 				results.push({
 					id: docSnap.id,
-					type: data.type ?? 'tournament_invite',
-					recipientId: data.recipientId,
-					senderId: data.senderId,
-					tournamentId: data.tournamentId,
-					inviteCode: data.inviteCode,
-					tournamentName: data.tournamentName,
-					message: data.message,
-					read: data.read,
+					type: (data.type as 'tournament_invite') ?? 'tournament_invite',
+					recipientId: data.recipientId as string,
+					senderId: data.senderId as string,
+					tournamentId: data.tournamentId as string,
+					inviteCode: data.inviteCode as string,
+					tournamentName: data.tournamentName as string,
+					message: data.message as string,
+					read: data.read as boolean,
 					createdAt: data.createdAt instanceof Date ? data.createdAt : new Date(),
 					expiresAt
+				});
+			}
+
+			// Delete expired docs in background (don't await)
+			if (toDelete.length > 0) {
+				toDelete.forEach(id => {
+					deleteDoc(doc(db, 'notifications', id)).catch(() => {});
 				});
 			}
 
@@ -145,8 +170,6 @@ export const notificationService = {
 	 */
 	async markAsRead(notificationId: string) {
 		const notificationRef = doc(db, 'notifications', notificationId);
-		return await updateDoc(notificationRef, {
-			read: true
-		});
+		return await updateDoc(notificationRef, { read: true });
 	}
 };
