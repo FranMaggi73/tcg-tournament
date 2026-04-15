@@ -3,7 +3,7 @@
 ## Arquitectura
 Monorepo con frontend y backend separados que se comunican vía REST API.
 
-- `frontend/` — SvelteKit + TypeScript + Tailwind + DaisyUI
+- `frontend/` — SvelteKit 5 + TypeScript + Tailwind 4 + DaisyUI 5
 - `backend/` — Go 1.22+ + Gin + Firebase Admin SDK
 
 ## Firebase — roles por capa
@@ -33,6 +33,15 @@ Campos: `id`, `roundId`, `player1Id`, `player2Id`, `player1Score`, `player2Score
 ### Amistades (colección `friendships`)
 Campos: `id`, `user1Id`, `user2Id`, `status`, `createdAt`
 
+### Notificaciones (colección `notifications`)
+Campos: `id`, `type`, `recipientId`, `senderId`, `tournamentId`, `inviteCode`, `tournamentName`, `message`, `read`, `createdAt`, `expiresAt`
+- Se auto-expiran a los 7 días
+- El frontend las lee directamente de Firestore (sin backend)
+
+### Perfiles de usuario (colección `users`)
+Campos: `uid`, `displayName`, `photoURL`, `bio`, `updatedAt`
+- Se crean automáticamente al primer login vía Google
+
 ## Roles de usuario
 - `judge`: crea torneo, avanza rondas, edita resultados, dropea jugadores (requiere pasar por el backend)
 - `viewer`: ve el torneo en tiempo real (solo Firestore onSnapshot, sin backend)
@@ -60,38 +69,45 @@ Campos: `id`, `user1Id`, `user2Id`, `status`, `createdAt`
 |--------|------|---------|
 | POST | `/tournaments` | CreateTournament |
 | DELETE | `/tournaments/:id` | DeleteTournament |
+| PATCH | `/tournaments/:id/complete` | CompleteTournament |
 | POST | `/tournaments/:id/rounds/next` | NextRound |
 | PATCH | `/tournaments/:id/matches/:matchId` | UpdateMatchResult |
 | PATCH | `/tournaments/:id/players/:playerId/status` | UpdatePlayerStatus |
+| DELETE | `/tournaments/:id/players/:playerId` | RemovePlayer |
 | POST | `/tournaments/:id/rollback` | RollbackRound |
 | POST | `/friends` | AddFriend |
 | GET | `/friends` | GetFriends |
+| GET | `/friends/pending` | GetPendingRequests |
 | PATCH | `/friends/:id` | UpdateFriendshipStatus |
 
 ## Ciclo de Vida del Torneo
-- **Estado `registration`**: Los jugadores pueden unirse mediante un `InviteCode` único. El judge puede configurar el formato.
+- **Estado `registration`**: Los jugadores pueden unirse mediante un `InviteCode` único. El judge puede configurar nombre y formato. Los jugadores se pueden **eliminar** completamente.
 - **Estado `playing`**: Se activa al generar la primera ronda.
   - El `InviteCode` queda invalidado.
-  - Ya no se pueden unir nuevos jugadores.
-  - El formato (BO1/BO3) queda bloqueado y no puede cambiarse.
-- **Estado `completed`**: Torneo finalizado.
+  - Ya no se pueden unir nuevos jugadores ni eliminarse.
+  - El formato (BO1/BO3) queda bloqueado.
+  - Los jugadores activos se pueden **dropear** (pasan a `dropped`). Los dropeados se pueden **restaurar** a `active`.
+- **Estado `completed`**: Torneo finalizado via `PATCH /tournaments/:id/complete`. Solo se puede eliminar el torneo.
 - **Rollback**: Elimina la ronda actual y sus matches de Firestore. Si se vuelve a ronda 0, el status regresa a `registration`.
 
 ## Formatos y Validación de Resultados
-- **BO1**: Solo se permite resultado 1-0 o 0-1. Puntaje: victoria=1, derrota=0.
+- **BO1**: Solo se permite resultado 1-0 o 0-1.
 - **BO3**: Solo se permiten resultados 2-0, 2-1, 0-2, 1-2 o 1-1 (empate).
-  - Puntaje: victoria=3, empate=1, derrota=0.
   - El `winnerId` se deriva de los scores en el backend (vacío = empate).
+- **Scoring real en el backend**: Tanto BO1 como BO3 otorgan 3 puntos por victoria y 1 por empate (el código no diferencia formato al calcular scores).
 
 ## Algoritmo suizo (solo backend)
-- Rondas = ceil(log2(jugadores))
+- Rondas = ceil(log2(jugadores activos))
 - Tiebreakers: OMW% → GW% → OGW%
 - Editar rondas pasadas recalcula standings pero NO re-parea rondas futuras
 
 ## Sistema de Amigos e Invitaciones
-- Los usuarios pueden añadir amigos mediante solicitudes de amistad (`pending` → `accepted`).
-- El judge puede listar sus amigos aceptados para facilitar el envío del código de invitación del torneo.
-- Las invitaciones se envían como notificaciones en la colección `notifications` de Firestore.
+- Los usuarios pueden añadir amigos mediante solicitudes de amistad (`pending` → `accepted`/`declined`).
+- El judge puede listar sus amigos aceptados para enviar invitaciones del torneo.
+- Las invitaciones se envían como notificaciones en la colección `notifications` de Firestore **directamente desde el frontend** (sin pasar por el backend).
+- Se evitan invitaciones duplicadas por recipient + tournament.
+- Las notificaciones expiran a los 7 días y se eliminan automáticamente al leerlas.
+- El badge de invitaciones en la Sidebar suma invitaciones de torneo no leídas + solicitudes de amistad pendientes.
 
 ## Comandos
 - Frontend: `cd frontend && npm run dev`
@@ -100,6 +116,8 @@ Campos: `id`, `user1Id`, `user2Id`, `status`, `createdAt`
 - Typecheck frontend: `cd frontend && npm run check`
 
 ## Issues conocidos
-- `ProcessMatchAtomic` usa `+=` para scores — editar un resultado existente duplica puntos (requiere full recalc)
-- `DeleteTournament` no elimina subcolecciones de Firestore (players, rounds, matches)
-- No hay tests en el backend
+- `ProcessMatchAtomic` usa `+=` para scores — editar un resultado existente duplica puntos (requiere full recalc). `UpdateStandings` recalcula tiebreakers pero los campos `wins/losses/draws/totalScore` siguen siendo acumulativos.
+- `DeleteTournament` no elimina subcolecciones de Firestore (players, rounds, matches) — quedan huérfanos.
+- `RemovePlayer` solo está permitido durante `registration`; durante `playing` hay que usar `dropParticipant`.
+- No hay tests en el backend.
+- El scoring en `ProcessMatchResult` siempre otorga 3 puntos por victoria independientemente del formato (BO1 y BO3 reciben el mismo puntaje).
